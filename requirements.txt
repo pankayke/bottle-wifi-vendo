@@ -1,0 +1,5 @@
+# Bottle WiFi Vendo Requirements
+# Python 3.7+ required
+
+# No external dependencies needed for core functionality
+# All features use Python standard library
