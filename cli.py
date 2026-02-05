@@ -161,7 +161,9 @@ class CLI:
             print("=" * 70)
             print(f"🎟️  Voucher Code: {voucher['voucher_code']}")
             print(f"⏱️  Duration: {duration} hours")
-            print(f"📅 Valid Until: {voucher['expires_at'][:10]}")
+            # Parse date safely
+            expiry_date = voucher['expires_at'].split('T')[0] if 'T' in voucher['expires_at'] else voucher['expires_at'][:10]
+            print(f"📅 Valid Until: {expiry_date}")
             print(f"♻️  Bottles Used: {bottles_required}")
             print("=" * 70)
             print("\n💡 Tip: Save this voucher code to activate your WiFi!")
