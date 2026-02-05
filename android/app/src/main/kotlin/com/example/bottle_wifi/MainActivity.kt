@@ -1,0 +1,5 @@
+package com.example.bottle_wifi
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()

@@ -1,0 +1,182 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import '../models/internet_credit.dart';
+import '../models/wifi_session.dart';
+import '../services/api_service.dart';
+import '../utils/api_exception.dart';
+
+/// Internet credit and session state provider
+class CreditProvider with ChangeNotifier {
+  final ApiService _apiService;
+
+  InternetCredit? _credits;
+  WifiSession? _activeSession;
+  bool _isLoading = false;
+  String? _errorMessage;
+  Timer? _sessionTimer;
+
+  CreditProvider({required ApiService apiService}) : _apiService = apiService;
+
+  // Getters
+  InternetCredit? get credits => _credits;
+  WifiSession? get activeSession => _activeSession;
+  bool get isLoading => _isLoading;
+  bool get hasActiveSession => _activeSession?.isActive ?? false;
+  String? get errorMessage => _errorMessage;
+
+  /// Fetch user credits
+  Future<void> fetchCredits() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.viewCredits();
+      _credits = response.data;
+      _isLoading = false;
+      notifyListeners();
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to fetch credits';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Request internet access
+  Future<bool> requestInternet({
+    required int machineId,
+    required int minutes,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.requestInternet(
+        machineId: machineId,
+        minutes: minutes,
+      );
+
+      _activeSession = response.data;
+      _isLoading = false;
+      notifyListeners();
+
+      // Start session monitoring
+      if (_activeSession?.isActive ?? false) {
+        _startSessionTimer();
+      }
+
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to request internet access';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Fetch active session
+  Future<void> fetchActiveSession() async {
+    try {
+      final response = await _apiService.getActiveSession();
+      _activeSession = response.data;
+      notifyListeners();
+
+      // Start or stop session timer based on session status
+      if (_activeSession?.isActive ?? false) {
+        _startSessionTimer();
+      } else {
+        _stopSessionTimer();
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to fetch active session';
+      notifyListeners();
+    }
+  }
+
+  /// Start session monitoring timer
+  void _startSessionTimer() {
+    _stopSessionTimer();
+
+    _sessionTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (timer) async {
+        await fetchActiveSession();
+
+        // Stop timer if session is no longer active
+        if (!(_activeSession?.isActive ?? false)) {
+          _stopSessionTimer();
+        }
+      },
+    );
+  }
+
+  /// Stop session monitoring timer
+  void _stopSessionTimer() {
+    _sessionTimer?.cancel();
+    _sessionTimer = null;
+  }
+
+  /// Get remaining session time as string
+  String? get remainingTimeString {
+    if (_activeSession == null || !_activeSession!.isActive) {
+      return null;
+    }
+
+    final remaining = _activeSession!.remainingMinutes;
+    final hours = remaining ~/ 60;
+    final minutes = remaining % 60;
+
+    if (hours > 0) {
+      return '$hours hr $minutes min';
+    }
+    return '$minutes min';
+  }
+
+  /// Get session progress (0.0 to 1.0)
+  double? get sessionProgress {
+    if (_activeSession == null || !_activeSession!.isActive) {
+      return null;
+    }
+
+    final total = _activeSession!.durationMinutes;
+    final remaining = _activeSession!.remainingMinutes;
+
+    if (total == 0) return 0.0;
+    return 1.0 - (remaining / total);
+  }
+
+  /// Clear error message
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Reset provider state
+  void reset() {
+    _credits = null;
+    _activeSession = null;
+    _isLoading = false;
+    _errorMessage = null;
+    _stopSessionTimer();
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _stopSessionTimer();
+    super.dispose();
+  }
+}
