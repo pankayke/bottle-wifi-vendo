@@ -7,29 +7,34 @@ class AppConstants {
 
   /// Base URL for the Laravel API
   /// TODO: Replace with your actual API URL
-  static const String baseUrl = 'https://your-laravel-api.com/api';
+  static const String baseUrl = 'http://localhost:8000/api';
 
   /// API Endpoints
   static const String loginEndpoint = '/login';
   static const String registerEndpoint = '/register';
   static const String logoutEndpoint = '/logout';
-  static const String reportBottleEndpoint = '/bottle/report';
-  static const String bottleHistoryEndpoint = '/bottle/history';
-  static const String bottleStatisticsEndpoint = '/bottle/statistics';
-  static const String requestInternetEndpoint = '/internet/request';
-  static const String viewCreditsEndpoint = '/internet/credits';
-  static const String activeSessionEndpoint = '/internet/session';
+  static const String reportBottleEndpoint = '/bottles/report';
+  static const String bottleHistoryEndpoint = '/bottles/history';
+  static const String bottleStatisticsEndpoint = '/bottles/statistics';
+  static const String requestInternetEndpoint = '/credits/request-internet';
+  static const String viewCreditsEndpoint = '/credits';
+  static const String activeSessionEndpoint = '/credits/active-session';
   static const String machineStatusEndpoint = '/machines/status';
   static const String machineHeartbeatEndpoint = '/machines/heartbeat';
-  static const String userProfileEndpoint = '/user/profile';
+  static const String userProfileEndpoint = '/profile';
 
   /// Storage Keys
   static const String tokenKey = 'auth_token';
+  static const String tokenExpiryKey = 'token_expiry';
   static const String userKey = 'user_data';
 
   /// Timeouts
   static const Duration connectionTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
+
+  /// Token Refresh
+  static const Duration tokenRefreshBuffer = Duration(minutes: 5);
+  static const String refreshTokenEndpoint = '/refresh-token';
 
   /// Validation
   static const int minPasswordLength = 8;

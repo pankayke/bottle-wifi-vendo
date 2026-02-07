@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'providers/auth_provider.dart';
 import 'providers/bottle_provider.dart';
 import 'providers/credit_provider.dart';
@@ -10,8 +11,60 @@ import 'services/api_service.dart';
 import 'services/storage_service.dart';
 import 'utils/constants.dart';
 
-void main() {
-  runApp(const MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Sentry for error tracking and performance monitoring
+  await SentryFlutter.init((options) {
+    // TODO: Replace with your actual Sentry DSN
+    options.dsn = 'YOUR_SENTRY_DSN_HERE';
+
+    // Set environment
+    options.environment = const String.fromEnvironment(
+      'ENVIRONMENT',
+      defaultValue: 'production',
+    );
+
+    // Enable automatic performance monitoring
+    options.tracesSampleRate =
+        1.0; // 100% of transactions for performance monitoring
+
+    // Capture failed HTTP requests
+    options.captureFailedRequests = true;
+
+    // Set release version (use your app version)
+    options.release = 'bottle-wifi-vendo@1.0.0';
+
+    // Enable automatic breadcrumbs
+    options.enableAutoSessionTracking = true;
+    options.sessionTrackingIntervalMillis = 10000; // 10 seconds
+
+    // Filter sensitive data
+    options.beforeSend = (event, hint) {
+      // Remove sensitive information from error reports
+      if (event.request?.data != null) {
+        final data = event.request!.data as Map<String, dynamic>?;
+        if (data != null) {
+          data.remove('password');
+          data.remove('token');
+          data.remove('api_key');
+        }
+      }
+      return event;
+    };
+
+    // Enable debug mode in development
+    options.debug = const bool.fromEnvironment('DEBUG', defaultValue: false);
+
+    // Configure breadcrumb filtering
+    options.beforeBreadcrumb = (breadcrumb, hint) {
+      // Filter out sensitive breadcrumbs
+      if (breadcrumb.message?.contains('password') ?? false) {
+        return null; // Don't send this breadcrumb
+      }
+      return breadcrumb;
+    };
+  }, appRunner: () => runApp(const MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -45,6 +98,12 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Bottle WiFi Vendo',
         debugShowCheckedModeBanner: false,
+        // Add Sentry's navigation observer for performance tracking
+        navigatorObservers: [SentryNavigatorObserver()],
+        // Wrap the app with Sentry's error boundary
+        builder: (context, widget) {
+          return widget ?? const SizedBox.shrink();
+        },
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
@@ -101,7 +160,10 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuthentication();
+    // Delay initialization until after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuthentication();
+    });
   }
 
   Future<void> _checkAuthentication() async {
@@ -130,7 +192,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.wifi, size: 100, color: Colors.white),
+            const Icon(Icons.wifi, size: 100, color: Colors.white),
             const SizedBox(height: 24),
             const Text(
               'Bottle WiFi Vendo',

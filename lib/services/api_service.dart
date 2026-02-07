@@ -118,12 +118,15 @@ class ApiService {
       ),
     );
 
+    // Extract data from Laravel response format
+    final data = responseData['data'] as Map<String, dynamic>;
+
     // Save token and user
-    if (responseData['token'] != null) {
-      await _storageService.saveToken(responseData['token'] as String);
+    if (data['token'] != null) {
+      await _storageService.saveToken(data['token'] as String);
     }
 
-    final user = User.fromJson(responseData['user'] as Map<String, dynamic>);
+    final user = User.fromJson(data['user'] as Map<String, dynamic>);
     await _storageService.saveUser(user);
 
     return ApiResponse<User>(
@@ -146,6 +149,23 @@ class ApiService {
         headers: await _getHeaders(includeAuth: false),
         body: body,
       ),
+    );
+
+    // Extract data from Laravel response format
+    final data = responseData['data'] as Map<String, dynamic>;
+
+    // Save token and user
+    if (data['token'] != null) {
+      await _storageService.saveToken(data['token'] as String);
+    }
+
+    final user = User.fromJson(data['user'] as Map<String, dynamic>);
+    await _storageService.saveUser(user);
+
+    return ApiResponse<User>(
+      success: true,
+      message: responseData['message'] as String?,
+      data: user,
     );
 
     // Save token and user
@@ -201,8 +221,9 @@ class ApiService {
       ),
     );
 
+    final data = responseData['data'] as Map<String, dynamic>;
     final bottleLog = BottleLog.fromJson(
-      responseData['bottle_log'] as Map<String, dynamic>,
+      data['bottle_log'] as Map<String, dynamic>,
     );
 
     return ApiResponse<BottleLog>(
@@ -225,7 +246,8 @@ class ApiService {
       () async => http.get(uri, headers: await _getHeaders()),
     );
 
-    final bottleLogs = (responseData['bottles'] as List)
+    final data = responseData['data'] as Map<String, dynamic>;
+    final bottleLogs = (data['bottles'] as List)
         .map((json) => BottleLog.fromJson(json as Map<String, dynamic>))
         .toList();
 
@@ -233,7 +255,7 @@ class ApiService {
       success: true,
       message: responseData['message'] as String?,
       data: bottleLogs,
-      meta: responseData['meta'] as Map<String, dynamic>?,
+      meta: data,
     );
   }
 
@@ -246,8 +268,9 @@ class ApiService {
       ),
     );
 
+    final data = responseData['data'] as Map<String, dynamic>;
     final statistics = BottleStatistics.fromJson(
-      responseData['statistics'] as Map<String, dynamic>,
+      data['statistics'] as Map<String, dynamic>,
     );
 
     return ApiResponse<BottleStatistics>(success: true, data: statistics);
@@ -270,8 +293,9 @@ class ApiService {
       ),
     );
 
+    final data = responseData['data'] as Map<String, dynamic>;
     final session = WifiSession.fromJson(
-      responseData['session'] as Map<String, dynamic>,
+      data['session'] as Map<String, dynamic>,
     );
 
     return ApiResponse<WifiSession>(
@@ -290,8 +314,9 @@ class ApiService {
       ),
     );
 
+    final data = responseData['data'] as Map<String, dynamic>;
     final credits = InternetCredit.fromJson(
-      responseData['credits'] as Map<String, dynamic>,
+      data['credits'] as Map<String, dynamic>,
     );
 
     return ApiResponse<InternetCredit>(success: true, data: credits);
@@ -306,7 +331,8 @@ class ApiService {
       ),
     );
 
-    final sessionData = responseData['session'];
+    final data = responseData['data'] as Map<String, dynamic>;
+    final sessionData = data['session'];
     final session = sessionData != null
         ? WifiSession.fromJson(sessionData as Map<String, dynamic>)
         : null;
@@ -321,11 +347,12 @@ class ApiService {
     final responseData = await _executeRequest(
       () async => http.get(
         Uri.parse('$baseUrl${AppConstants.machineStatusEndpoint}'),
-        headers: await _getHeaders(),
+        headers: await _getHeaders(includeAuth: false),
       ),
     );
 
-    final machines = (responseData['machines'] as List)
+    final data = responseData['data'] as Map<String, dynamic>;
+    final machines = (data['machines'] as List)
         .map((json) => Machine.fromJson(json as Map<String, dynamic>))
         .toList();
 
@@ -349,9 +376,8 @@ class ApiService {
       ),
     );
 
-    final machine = Machine.fromJson(
-      responseData['machine'] as Map<String, dynamic>,
-    );
+    final data = responseData['data'] as Map<String, dynamic>;
+    final machine = Machine.fromJson(data['machine'] as Map<String, dynamic>);
 
     return ApiResponse<Machine>(success: true, data: machine);
   }
@@ -367,7 +393,8 @@ class ApiService {
       ),
     );
 
-    final user = User.fromJson(responseData['user'] as Map<String, dynamic>);
+    final data = responseData['data'] as Map<String, dynamic>;
+    final user = User.fromJson(data['user'] as Map<String, dynamic>);
     await _storageService.saveUser(user);
 
     return ApiResponse<User>(success: true, data: user);

@@ -50,16 +50,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (success) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const DashboardScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const DashboardScreen()),
       );
     } else {
-      Helpers.showSnackbar(
-        context,
-        authProvider.errorMessage ?? 'Registration failed',
-        isError: true,
-      );
+      String errorMsg = authProvider.errorMessage ?? 'Registration failed';
+
+      // Show helpful message if backend is not available
+      if (errorMsg.contains('Failed to fetch') ||
+          errorMsg.contains('SocketException')) {
+        errorMsg =
+            'Cannot connect to server. Make sure your Laravel backend is running at http://localhost:8000';
+      }
+
+      Helpers.showSnackbar(context, errorMsg, isError: true);
     }
   }
 
@@ -95,9 +98,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     'Create Account',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: 8),
 
@@ -106,8 +109,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     'Sign up to get started',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 48),
 
@@ -215,8 +218,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, child) {
                       return ElevatedButton(
-                        onPressed:
-                            authProvider.isLoading ? null : _handleRegister,
+                        onPressed: authProvider.isLoading
+                            ? null
+                            : _handleRegister,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: AppColors.primaryColor,

@@ -40,6 +40,8 @@ dependencies:
   
   # HTTP & Networking
   http: ^1.2.1
+  dio: ^5.7.0  # Advanced HTTP client with interceptors
+  connectivity_plus: ^6.1.3  # Network connectivity monitoring
   
   # Secure Storage for Tokens
   flutter_secure_storage: ^9.2.2
@@ -50,9 +52,20 @@ dependencies:
   # Dependency Injection
   get_it: ^8.0.3
   
+  # Image Caching
+  cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
+  
   # UI & Utilities
   intl: ^0.19.0
   shimmer: ^3.0.0
+  pull_to_refresh: ^2.0.0  # Pull-to-refresh functionality
+  
+  # Certificate Pinning (Security)
+  ssl_pinning_plugin: ^2.0.0
+  
+  # Error Tracking & Performance Monitoring
+  sentry_flutter: ^8.12.0
 
 dev_dependencies:
   flutter_test:
@@ -68,6 +81,12 @@ dev_dependencies:
   # Code Generation
   build_runner: ^2.4.13
   json_serializable: ^6.9.2
+  
+  # Testing
+  mockito: ^5.4.4  # Mock generation for testing
+  mocktail: ^1.0.4  # Alternative mocking library
+  http_mock_adapter: ^0.6.1  # Mock HTTP responses for Dio
+  network_image_mock: ^2.1.1  # Mock network images in tests
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
