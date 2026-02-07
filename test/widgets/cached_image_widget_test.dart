@@ -102,9 +102,9 @@ void main() {
       await mockNetworkImagesFor(() async {
         await tester.pumpWidget(
           createTestWidget(
-            const CachedImageWidget(
+            CachedImageWidget(
               imageUrl: 'https://example.com/image.jpg',
-              borderRadius: 16.0,
+              borderRadius: BorderRadius.circular(16.0),
             ),
           ),
         );
@@ -171,9 +171,7 @@ void main() {
 
     testWidgets('uses custom background color', (tester) async {
       await tester.pumpWidget(
-        createTestWidget(
-          const CachedAvatarImage(imageUrl: '', backgroundColor: Colors.blue),
-        ),
+        createTestWidget(const CachedAvatarImage(imageUrl: '', radius: 50)),
       );
 
       await tester.pumpAndSettle();
@@ -269,7 +267,7 @@ void main() {
           createTestWidget(
             const MachineImageWidget(
               imageUrl: 'https://example.com/machine.jpg',
-              size: 100,
+              radius: 50,
             ),
           ),
         );

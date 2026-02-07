@@ -41,7 +41,7 @@ Response<T> createMockResponse<T>({
   required T data,
   int statusCode = 200,
   String statusMessage = 'OK',
-  Map<String, dynamic>? headers,
+  Map<String, List<String>>? headers,
 }) {
   return Response<T>(
     data: data,

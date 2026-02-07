@@ -167,20 +167,6 @@ class ApiService {
       message: responseData['message'] as String?,
       data: user,
     );
-
-    // Save token and user
-    if (responseData['token'] != null) {
-      await _storageService.saveToken(responseData['token'] as String);
-    }
-
-    final user = User.fromJson(responseData['user'] as Map<String, dynamic>);
-    await _storageService.saveUser(user);
-
-    return ApiResponse<User>(
-      success: true,
-      message: responseData['message'] as String?,
-      data: user,
-    );
   }
 
   /// Logout user
