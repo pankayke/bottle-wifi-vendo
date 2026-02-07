@@ -48,17 +48,15 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } else {
       String errorMsg = authProvider.errorMessage ?? 'Login failed';
-      
+
       // Show helpful message if backend is not available
-      if (errorMsg.contains('Failed to fetch') || errorMsg.contains('SocketException')) {
-        errorMsg = 'Cannot connect to server. Make sure your Laravel backend is running at http://localhost:8000';
+      if (errorMsg.contains('Failed to fetch') ||
+          errorMsg.contains('SocketException')) {
+        errorMsg =
+            'Cannot connect to server. Make sure your Laravel backend is running at http://localhost:8000';
       }
-      
-      Helpers.showSnackbar(
-        context,
-        errorMsg,
-        isError: true,
-      );
+
+      Helpers.showSnackbar(context, errorMsg, isError: true);
     }
   }
 
@@ -71,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -82,13 +80,53 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Logo/Icon
-                  Icon(Icons.wifi, size: 80, color: AppColors.primaryColor),
+                  // Back Button
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios_new),
+                      color: AppColors.primaryColor,
+                    ),
+                  ),
                   const SizedBox(height: 16),
+
+                  // Campus Logo
+                  Center(
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryColor.withOpacity(0.2),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/school_logo.jpg',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.school,
+                              size: 80,
+                              color: AppColors.primaryColor,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
                   // Title
                   Text(
-                    'Bottle WiFi Vendo',
+                    'Bottle-Wifi',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,

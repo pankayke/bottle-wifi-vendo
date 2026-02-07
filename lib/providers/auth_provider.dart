@@ -118,6 +118,29 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Login with token (used after guest registration)
+  Future<void> loginWithToken(
+    String token,
+    Map<String, dynamic> userData,
+  ) async {
+    try {
+      // Save token to storage
+      await _storageService.saveToken(token);
+
+      // Create user object from data
+      _user = User.fromJson(userData);
+      await _storageService.saveUser(_user!);
+
+      _isAuthenticated = true;
+      _errorMessage = null;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to save authentication data';
+      debugPrint('Login with token error: $e');
+      notifyListeners();
+    }
+  }
+
   /// Logout user
   Future<void> logout() async {
     _isLoading = true;

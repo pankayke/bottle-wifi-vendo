@@ -61,6 +61,10 @@ dependencies:
   shimmer: ^3.0.0
   pull_to_refresh: ^2.0.0  # Pull-to-refresh functionality
   
+  # Device Fingerprinting & Security
+  device_info_plus: ^10.1.2
+  crypto: ^3.0.5
+  
   # Certificate Pinning (Security)
   ssl_pinning_plugin: ^2.0.0
   
@@ -98,6 +102,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Assets
+  assets:
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -7,7 +7,7 @@ class AppConstants {
 
   /// Base URL for the Laravel API
   /// TODO: Replace with your actual API URL
-  static const String baseUrl = 'http://localhost:8000/api';
+  static const String baseUrl = 'http://localhost:8000/api/v1';
 
   /// API Endpoints
   static const String loginEndpoint = '/login';
@@ -50,16 +50,16 @@ class AppConstants {
 class AppColors {
   AppColors._();
 
-  static const primaryColor = Color(0xFF2196F3);
-  static const primaryDark = Color(0xFF1976D2);
-  static const primaryLight = Color(0xFFBBDEFB);
-  static const accentColor = Color(0xFF4CAF50);
+  static const primaryColor = Color(0xFF1565C0); // Blue
+  static const primaryDark = Color(0xFF0D47A1);
+  static const primaryLight = Color(0xFF42A5F5);
+  static const accentColor = Color(0xFF1976D2);
   static const errorColor = Color(0xFFF44336);
   static const warningColor = Color(0xFFFF9800);
-  static const successColor = Color(0xFF4CAF50);
-  static const textPrimary = Color(0xFF212121);
-  static const textSecondary = Color(0xFF757575);
-  static const dividerColor = Color(0xFFBDBDBD);
-  static const backgroundColor = Color(0xFFF5F5F5);
+  static const successColor = Color(0xFF48BB78); // Green for success
+  static const textPrimary = Color(0xFF2D3748);
+  static const textSecondary = Color(0xFF718096);
+  static const dividerColor = Color(0xFFE2E8F0);
+  static const backgroundColor = Color(0xFFFFFFFF);
   static const cardBackground = Color(0xFFFFFFFF);
 }
