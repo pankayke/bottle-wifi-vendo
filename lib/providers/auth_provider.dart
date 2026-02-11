@@ -152,6 +152,8 @@ class AuthProvider with ChangeNotifier {
       // Continue with logout even if API call fails
       debugPrint('Logout API error: $e');
     } finally {
+      // Always clear local storage to prevent stale auth state
+      await _storageService.clearAll();
       _user = null;
       _isAuthenticated = false;
       _errorMessage = null;

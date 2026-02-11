@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Application-wide constants
@@ -6,8 +7,22 @@ class AppConstants {
   AppConstants._();
 
   /// Base URL for the Laravel API
-  /// TODO: Replace with your actual API URL
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  /// Uses environment variable or defaults based on build mode
+  static String get baseUrl {
+    // Check for environment override first
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+
+    // Default: localhost for debug (works for both web and Android emulator)
+    if (kReleaseMode) {
+      return 'https://your-production-server.com/api/v1'; // TODO: Update with actual production URL
+    }
+
+    // For web, use localhost directly; for Android emulator, use 10.0.2.2
+    return kIsWeb
+        ? 'http://localhost:8000/api/v1'
+        : 'http://10.0.2.2:8000/api/v1';
+  }
 
   /// API Endpoints
   static const String loginEndpoint = '/login';

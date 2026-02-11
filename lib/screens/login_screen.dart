@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
 import '../utils/validators.dart';
+import 'admin_shell_screen.dart';
 import 'dashboard_screen.dart';
 import 'register_screen.dart';
 
@@ -43,9 +44,17 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const DashboardScreen()),
-      );
+      // Check if user is admin and redirect accordingly
+      final user = authProvider.user;
+      if (user != null && user.isAdmin) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const AdminShellScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        );
+      }
     } else {
       String errorMsg = authProvider.errorMessage ?? 'Login failed';
 

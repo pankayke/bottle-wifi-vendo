@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
+// Sentry disabled for development
+// import 'package:sentry_flutter/sentry_flutter.dart';
+import 'providers/admin_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/bottle_provider.dart';
 import 'providers/credit_provider.dart';
 import 'providers/machine_provider.dart';
 import 'screens/access_mode_selection_screen.dart';
+import 'screens/admin_shell_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/guest_bottle_scan_screen.dart';
-import 'screens/home_dashboard_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/optional_registration_screen.dart';
 import 'screens/voucher_entry_screen.dart';
+import 'services/admin_api_service.dart';
 import 'services/api_service.dart';
 import 'services/storage_service.dart';
 import 'utils/constants.dart';
@@ -35,6 +37,7 @@ class MyApp extends StatelessWidget {
     // Initialize services
     final storageService = StorageService();
     final apiService = ApiService(storageService: storageService);
+    final adminApiService = AdminApiService(storageService: storageService);
 
     return MultiProvider(
       providers: [
@@ -54,23 +57,27 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => MachineProvider(apiService: apiService),
         ),
+        ChangeNotifierProvider(
+          create: (_) => AdminProvider(adminApiService: adminApiService),
+        ),
       ],
       child: MaterialApp(
         title: 'Bottle WiFi Vendo',
         debugShowCheckedModeBanner: false,
-        // Add Sentry's navigation observer for performance tracking
-        navigatorObservers: [SentryNavigatorObserver()],
-        // Wrap the app with Sentry's error boundary
+        // navigatorObservers: [SentryNavigatorObserver()],
         builder: (context, widget) {
           return widget ?? const SizedBox.shrink();
         },
+        themeMode: ThemeMode.light,
         theme: ThemeData(
           useMaterial3: true,
+          brightness: Brightness.light,
           colorScheme: ColorScheme.fromSeed(
             seedColor: AppColors.primaryColor,
             primary: AppColors.primaryColor,
             secondary: AppColors.accentColor,
             error: AppColors.errorColor,
+            brightness: Brightness.light,
           ),
           scaffoldBackgroundColor: AppColors.backgroundColor,
           cardTheme: const CardThemeData(
@@ -101,15 +108,20 @@ class MyApp extends StatelessWidget {
               ),
             ),
           ),
+          appBarTheme: const AppBarTheme(
+            centerTitle: true,
+            elevation: 0,
+            scrolledUnderElevation: 1,
+          ),
         ),
-        // Named routes for navigation
         routes: {
           '/': (context) => const SplashScreen(),
           '/access-selection': (context) => const AccessModeSelectionScreen(),
           '/login': (context) => const LoginScreen(),
           '/guest-scan': (context) => const GuestBottleScanScreen(),
           '/voucher-entry': (context) => const VoucherEntryScreen(),
-          '/dashboard': (context) => const HomeDashboardScreen(),
+          '/dashboard': (context) => const DashboardScreen(),
+          '/admin': (context) => const AdminShellScreen(),
         },
       ),
     );
@@ -140,24 +152,20 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
-    // NEW BEHAVIOR: Always show access mode selection first
-    // Login is optional, not required
+    // If admin is already logged in, go straight to admin panel
+    if (authProvider.isAuthenticated && authProvider.user?.isAdmin == true) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const AdminShellScreen()),
+      );
+      return;
+    }
+
+    // Otherwise show access mode selection
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => const AccessModeSelectionScreen(),
       ),
     );
-
-    // OLD BEHAVIOR (commented out):
-    // if (authProvider.isAuthenticated) {
-    //   Navigator.of(context).pushReplacement(
-    //     MaterialPageRoute(builder: (context) => const HomeDashboardScreen()),
-    //   );
-    // } else {
-    //   Navigator.of(context).pushReplacement(
-    //     MaterialPageRoute(builder: (context) => const LoginScreen()),
-    //   );
-    // }
   }
 
   @override

@@ -30,19 +30,28 @@ class Machine {
   factory Machine.fromJson(Map<String, dynamic> json) {
     return Machine(
       id: json['id'] as int,
-      name: json['name'] as String,
+      name: json['name'] as String? ?? 'Unknown',
       macAddress: json['mac_address'] as String? ?? '',
       ipAddress: json['ip_address'] as String? ?? '',
       status: json['status'] as String? ?? 'offline',
       isOnline: json['is_online'] as bool? ?? false,
-      lastOnline: json['last_online'] != null
-          ? DateTime.parse(json['last_online'] as String)
-          : null,
+      lastOnline: _parseDateTime(json['last_online'] ?? json['last_heartbeat']),
       location: json['location'] as String?,
-      totalBottlesProcessed: json['total_bottles_processed'] as int? ?? 0,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      totalBottlesProcessed:
+          json['total_bottles_processed'] as int? ??
+          json['today_bottles'] as int? ??
+          0,
+      createdAt: _parseDateTime(json['created_at']) ?? DateTime.now(),
+      updatedAt: _parseDateTime(json['updated_at']) ?? DateTime.now(),
     );
+  }
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    return null;
   }
 
   /// Convert Machine to JSON

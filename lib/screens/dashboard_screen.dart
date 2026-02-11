@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -9,8 +7,6 @@ import '../providers/machine_provider.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
 import 'bottle_history_screen.dart';
-import 'bottle_scanning_screen.dart';
-import 'bottle_success_screen.dart';
 import 'machine_status_screen.dart';
 import 'login_screen.dart';
 
@@ -116,310 +112,318 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-              ),
-              child: ClipOval(
-                child: Image.asset(
-                  'assets/images/school_logo.jpg',
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Icon(
-                      Icons.school,
-                      size: 20,
-                      color: AppColors.primaryColor,
-                    );
-                  },
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/school_logo.jpg',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.school,
+                        size: 20,
+                        color: AppColors.primaryColor,
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Bottle-Wifi',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0.5,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-            tooltip: 'Notifications',
-          ),
-          PopupMenuButton(
-            icon: const Icon(Icons.more_vert),
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                onTap: _refreshData,
-                child: Row(
-                  children: const [
-                    Icon(Icons.refresh, size: 20),
-                    SizedBox(width: 12),
-                    Text('Refresh'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                onTap: _handleLogout,
-                child: Row(
-                  children: const [
-                    Icon(Icons.logout, size: 20, color: Colors.red),
-                    SizedBox(width: 12),
-                    Text('Logout', style: TextStyle(color: Colors.red)),
-                  ],
-                ),
+              const SizedBox(width: 12),
+              const Text(
+                'Bottle-Wifi',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ],
           ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // WiFi Timer Card
-              Consumer<CreditProvider>(
-                builder: (context, creditProvider, child) {
-                  final session = creditProvider.activeSession;
-                  final hasActiveSession = session != null;
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black87,
+          elevation: 0.5,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              onPressed: () {},
+              tooltip: 'Notifications',
+            ),
+            PopupMenuButton(
+              icon: const Icon(Icons.more_vert),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: _refreshData,
+                  child: Row(
+                    children: const [
+                      Icon(Icons.refresh, size: 20),
+                      SizedBox(width: 12),
+                      Text('Refresh'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  onTap: _handleLogout,
+                  child: Row(
+                    children: const [
+                      Icon(Icons.logout, size: 20, color: Colors.red),
+                      SizedBox(width: 12),
+                      Text('Logout', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: _refreshData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // WiFi Timer Card
+                Consumer<CreditProvider>(
+                  builder: (context, creditProvider, child) {
+                    final session = creditProvider.activeSession;
+                    final hasActiveSession = session != null;
 
-                  return Container(
+                    return Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryColor,
+                            AppColors.primaryColor.withOpacity(0.8),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryColor.withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            hasActiveSession
+                                ? 'REMAINING WIFI TIME'
+                                : 'WIFI INACTIVE',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            hasActiveSession
+                                ? _formatDuration(session.remainingMinutes)
+                                : '00:00:00',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 2,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (hasActiveSession)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.wifi,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'WiFi Active',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (!hasActiveSession)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'Start session to connect',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // Stats Row
+                Consumer2<CreditProvider, BottleProvider>(
+                  builder: (context, creditProvider, bottleProvider, child) {
+                    final stats = bottleProvider.statistics;
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            value:
+                                '${creditProvider.credits?.remainingMinutes ?? 0}',
+                            label: 'WiFi Credits',
+                            icon: Icons.wifi,
+                            color: AppColors.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _StatCard(
+                            value: '${stats?.totalBottles ?? 0}',
+                            label: 'Bottles Recycled',
+                            icon: Icons.recycling,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // Ready to Insert Bottle Button
+                InkWell(
+                  onTap: () {
+                    // Navigate to guest bottle scan or show demo
+                    Navigator.pushNamed(context, '/guest-scan');
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          AppColors.primaryColor,
-                          AppColors.primaryColor.withOpacity(0.8),
+                          AppColors.primaryColor.withOpacity(0.1),
+                          AppColors.primaryColor.withOpacity(0.05),
                         ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryColor.withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+                      border: Border.all(
+                        color: AppColors.primaryColor.withOpacity(0.3),
+                        width: 2,
+                      ),
                     ),
                     child: Column(
                       children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryColor.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.local_drink,
+                            size: 48,
+                            color: AppColors.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         Text(
-                          hasActiveSession
-                              ? 'REMAINING WIFI TIME'
-                              : 'WIFI INACTIVE',
+                          'Ready to Insert Bottle',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          hasActiveSession
-                              ? _formatDuration(session.remainingMinutes)
-                              : '00:00:00',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 48,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            letterSpacing: 2,
-                            fontFeatures: [FontFeature.tabularFigures()],
+                            color: AppColors.primaryColor,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        if (hasActiveSession)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.wifi, color: Colors.white, size: 16),
-                                SizedBox(width: 8),
-                                Text(
-                                  'WiFi Active',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Place a bottle in the machine',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
                           ),
-                        if (!hasActiveSession)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'Start session to connect',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
+                        ),
                       ],
                     ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Stats Row
-              Consumer2<CreditProvider, BottleProvider>(
-                builder: (context, creditProvider, bottleProvider, child) {
-                  final stats = bottleProvider.statistics;
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: _StatCard(
-                          value:
-                              '${creditProvider.credits?.remainingMinutes ?? 0}',
-                          label: 'WiFi Credits',
-                          icon: Icons.wifi,
-                          color: AppColors.primaryColor,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _StatCard(
-                          value: '${stats?.totalBottles ?? 0}',
-                          label: 'Bottles Recycled',
-                          icon: Icons.recycling,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Ready to Insert Bottle Button
-              InkWell(
-                onTap: () {
-                  // Navigate to guest bottle scan or show demo
-                  Navigator.pushNamed(context, '/guest-scan');
-                },
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.primaryColor.withOpacity(0.1),
-                        AppColors.primaryColor.withOpacity(0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: AppColors.primaryColor.withOpacity(0.3),
-                      width: 2,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.local_drink,
-                          size: 48,
-                          color: AppColors.primaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Ready to Insert Bottle',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Place a bottle in the machine',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // Quick Actions
-              Row(
-                children: [
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.history,
-                      label: 'History',
-                      onTap: _navigateToBottleHistory,
+                // Quick Actions
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.history,
+                        label: 'History',
+                        onTap: _navigateToBottleHistory,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.router,
-                      label: 'Machines',
-                      onTap: _navigateToMachineStatus,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.router,
+                        label: 'Machines',
+                        onTap: _navigateToMachineStatus,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Consumer<CreditProvider>(
-                      builder: (context, creditProvider, child) {
-                        return _ActionButton(
-                          icon: Icons.play_circle_filled,
-                          label: 'Start WiFi',
-                          color: Colors.green,
-                          onTap: () => _requestInternet(context),
-                        );
-                      },
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Consumer<CreditProvider>(
+                        builder: (context, creditProvider, child) {
+                          return _ActionButton(
+                            icon: Icons.play_circle_filled,
+                            label: 'Start WiFi',
+                            color: Colors.green,
+                            onTap: () => _requestInternet(context),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -513,51 +517,6 @@ class _ActionButton extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: buttonColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickActionCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickActionCard({
-    required this.icon,
-    required this.title,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: AppConstants.cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Icon(icon, size: 40, color: color),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

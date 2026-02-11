@@ -1,34 +1,41 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/user.dart';
 import '../utils/constants.dart';
 
-/// Secure storage service for sensitive data
+/// Storage service that persists data across sessions.
+/// Uses SharedPreferences which works reliably on Web, Android, and iOS.
 class StorageService {
-  static const FlutterSecureStorage _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
-  );
+  SharedPreferences? _prefs;
+
+  Future<SharedPreferences> get _preferences async {
+    _prefs ??= await SharedPreferences.getInstance();
+    return _prefs!;
+  }
 
   /// Save authentication token with expiry
   Future<void> saveToken(String token, {DateTime? expiresAt}) async {
-    await _storage.write(key: AppConstants.tokenKey, value: token);
+    final prefs = await _preferences;
+    await prefs.setString(AppConstants.tokenKey, token);
     if (expiresAt != null) {
-      await _storage.write(
-        key: AppConstants.tokenExpiryKey,
-        value: expiresAt.toIso8601String(),
+      await prefs.setString(
+        AppConstants.tokenExpiryKey,
+        expiresAt.toIso8601String(),
       );
     }
   }
 
   /// Get authentication token
   Future<String?> getToken() async {
-    return await _storage.read(key: AppConstants.tokenKey);
+    final prefs = await _preferences;
+    return prefs.getString(AppConstants.tokenKey);
   }
 
   /// Get token expiry date
   Future<DateTime?> getTokenExpiry() async {
-    final expiryStr = await _storage.read(key: AppConstants.tokenExpiryKey);
+    final prefs = await _preferences;
+    final expiryStr = prefs.getString(AppConstants.tokenExpiryKey);
     if (expiryStr == null) return null;
     try {
       return DateTime.parse(expiryStr);
@@ -48,8 +55,9 @@ class StorageService {
 
   /// Delete authentication token
   Future<void> deleteToken() async {
-    await _storage.delete(key: AppConstants.tokenKey);
-    await _storage.delete(key: AppConstants.tokenExpiryKey);
+    final prefs = await _preferences;
+    await prefs.remove(AppConstants.tokenKey);
+    await prefs.remove(AppConstants.tokenExpiryKey);
   }
 
   /// Check if user is authenticated
@@ -60,13 +68,15 @@ class StorageService {
 
   /// Save user data
   Future<void> saveUser(User user) async {
+    final prefs = await _preferences;
     final userJson = jsonEncode(user.toJson());
-    await _storage.write(key: AppConstants.userKey, value: userJson);
+    await prefs.setString(AppConstants.userKey, userJson);
   }
 
   /// Get user data
   Future<User?> getUser() async {
-    final userJson = await _storage.read(key: AppConstants.userKey);
+    final prefs = await _preferences;
+    final userJson = prefs.getString(AppConstants.userKey);
     if (userJson == null) return null;
 
     try {
@@ -79,11 +89,15 @@ class StorageService {
 
   /// Delete user data
   Future<void> deleteUser() async {
-    await _storage.delete(key: AppConstants.userKey);
+    final prefs = await _preferences;
+    await prefs.remove(AppConstants.userKey);
   }
 
   /// Clear all stored data
   Future<void> clearAll() async {
-    await _storage.deleteAll();
+    final prefs = await _preferences;
+    await prefs.remove(AppConstants.tokenKey);
+    await prefs.remove(AppConstants.tokenExpiryKey);
+    await prefs.remove(AppConstants.userKey);
   }
 }

@@ -8,7 +8,7 @@ class AccessModeSelectionScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             children: [
@@ -66,49 +66,47 @@ class AccessModeSelectionScreen extends StatelessWidget {
               const SizedBox(height: 60),
 
               // Access Mode Cards
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Guest Mode - Insert Bottle
-                    _AccessModeCard(
-                      icon: Icons.recycling,
-                      title: 'Insert Bottle',
-                      subtitle: 'Get free WiFi instantly',
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF4CAF50), Color(0xFF388E3C)],
-                      ),
-                      onTap: () => _navigateToGuestFlow(context),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Guest Mode - Insert Bottle
+                  _AccessModeCard(
+                    icon: Icons.recycling,
+                    title: 'Insert Bottle',
+                    subtitle: 'Get free WiFi instantly',
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4CAF50), Color(0xFF388E3C)],
                     ),
+                    onTap: () => _navigateToGuestFlow(context),
+                  ),
 
-                    const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                    // Voucher Mode
-                    _AccessModeCard(
-                      icon: Icons.confirmation_number,
-                      title: 'Redeem Voucher',
-                      subtitle: 'Enter your voucher code',
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
-                      ),
-                      onTap: () => _navigateToVoucherFlow(context),
+                  // Voucher Mode
+                  _AccessModeCard(
+                    icon: Icons.confirmation_number,
+                    title: 'Redeem Voucher',
+                    subtitle: 'Enter your voucher code',
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
                     ),
+                    onTap: () => _navigateToVoucherFlow(context),
+                  ),
 
-                    const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                    // Account Mode (Optional)
-                    _AccessModeCard(
-                      icon: Icons.person,
-                      title: 'Login',
-                      subtitle: 'Access your account (optional)',
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
-                      ),
-                      isOutlined: true,
-                      onTap: () => _navigateToLogin(context),
+                  // Account Mode (Optional)
+                  _AccessModeCard(
+                    icon: Icons.person,
+                    title: 'Login',
+                    subtitle: 'Access your account (optional)',
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
                     ),
-                  ],
-                ),
+                    isOutlined: true,
+                    onTap: () => _navigateToLogin(context),
+                  ),
+                ],
               ),
 
               const SizedBox(height: 20),
