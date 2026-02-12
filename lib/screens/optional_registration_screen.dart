@@ -33,6 +33,15 @@ class _OptionalRegistrationScreenState
     _loadConversionPreview();
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadConversionPreview() async {
     try {
       final fingerprint = await DeviceFingerprintService()
@@ -68,12 +77,22 @@ class _OptionalRegistrationScreenState
 
       if (!mounted) return;
 
-      if (result['success']) {
+      if (result['success'] == true) {
+        final data = result['data'] as Map<String, dynamic>?;
+        if (data == null) {
+          _showError('Registration failed: invalid response');
+          return;
+        }
+
         // Save token and user data
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        await authProvider.loginWithToken(result['token'], result['user']);
+        final token = data['token'] as String;
+        final userData = data['user'] as Map<String, dynamic>;
+        await authProvider.loginWithToken(token, userData);
 
         if (!mounted) return;
+
+        final creditsTransferred = data['credits_transferred'] as int? ?? 0;
 
         // Show success dialog
         showDialog(
@@ -83,7 +102,7 @@ class _OptionalRegistrationScreenState
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            title: Row(
+            title: const Row(
               children: [
                 Icon(Icons.celebration, color: Colors.orange, size: 32),
                 SizedBox(width: 12),
@@ -94,10 +113,12 @@ class _OptionalRegistrationScreenState
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(result['message'] ?? 'Registration successful!'),
-                SizedBox(height: 16),
+                Text(
+                  result['message'] as String? ?? 'Registration successful!',
+                ),
+                const SizedBox(height: 16),
                 Container(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.green.shade50,
                     borderRadius: BorderRadius.circular(12),
@@ -106,24 +127,10 @@ class _OptionalRegistrationScreenState
                   child: Column(
                     children: [
                       _buildCreditRow(
-                        Icons.access_time,
-                        'Total Credits',
-                        '${result['credits']['total_minutes']} minutes',
-                        Colors.blue,
-                      ),
-                      Divider(height: 16),
-                      _buildCreditRow(
-                        Icons.recycling,
-                        'Bottles Recycled',
-                        '${result['credits']['bottles_scanned']} bottles',
-                        Colors.green,
-                      ),
-                      Divider(height: 16),
-                      _buildCreditRow(
                         Icons.wifi,
-                        'Available WiFi',
-                        '${result['credits']['remaining_minutes']} minutes',
-                        Colors.orange,
+                        'Credits Transferred',
+                        '$creditsTransferred minutes',
+                        Colors.blue,
                       ),
                     ],
                   ),
@@ -278,17 +285,12 @@ class _OptionalRegistrationScreenState
                               _buildStatRow(
                                 Icons.recycling,
                                 'Bottles Scanned',
-                                '${_conversionPreview!['preview']['total_bottles_scanned']}',
+                                '${_conversionPreview!['total_scans'] ?? 0}',
                               ),
                               _buildStatRow(
                                 Icons.access_time,
-                                'Minutes Earned',
-                                '${_conversionPreview!['preview']['total_minutes_earned']}',
-                              ),
-                              _buildStatRow(
-                                Icons.wifi,
-                                'Minutes Available',
-                                '${_conversionPreview!['preview']['minutes_remaining']}',
+                                'Credits Earned',
+                                '${_conversionPreview!['total_credits'] ?? 0} minutes',
                               ),
                               Divider(height: 24),
                               Text(
@@ -441,8 +443,8 @@ class _OptionalRegistrationScreenState
                                   if (value == null || value.isEmpty) {
                                     return 'Please enter a password';
                                   }
-                                  if (value.length < 6) {
-                                    return 'Password must be at least 6 characters';
+                                  if (value.length < 8) {
+                                    return 'Password must be at least 8 characters';
                                   }
                                   return null;
                                 },
@@ -569,14 +571,5 @@ class _OptionalRegistrationScreenState
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Text(text, style: TextStyle(fontSize: 14, height: 1.5)),
     );
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
   }
 }

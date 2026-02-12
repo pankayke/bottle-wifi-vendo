@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../services/database_helper.dart';
 import '../services/device_fingerprint_service.dart';
 import '../utils/constants.dart';
+import '../utils/helpers.dart';
 
 class VoucherEntryScreen extends StatefulWidget {
   const VoucherEntryScreen({super.key});
@@ -229,7 +230,14 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
   void _showSuccessDialog(Map<String, dynamic> data) {
     final session = data['session'];
     final minutes = session?['minutes_granted'] ?? 0;
-    final expiresAt = session?['expires_at'] ?? '';
+    final expiresAtRaw = session?['expires_at'] as String?;
+    String expiresAtFormatted = '';
+    if (expiresAtRaw != null && expiresAtRaw.isNotEmpty) {
+      final parsed = DateTime.tryParse(expiresAtRaw);
+      expiresAtFormatted = parsed != null
+          ? Helpers.formatDateTime(parsed)
+          : expiresAtRaw;
+    }
 
     showDialog(
       context: context,
@@ -271,10 +279,10 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
                 color: AppColors.textSecondary,
               ),
             ),
-            if (expiresAt.isNotEmpty) ...[
+            if (expiresAtFormatted.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                'Expires: $expiresAt',
+                'Expires: $expiresAtFormatted',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -345,7 +353,9 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primaryColor.withValues(alpha: 0.2),
+                            color: AppColors.primaryColor.withValues(
+                              alpha: 0.2,
+                            ),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),

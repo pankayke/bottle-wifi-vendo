@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/guest_service.dart';
+import '../services/database_helper.dart';
 import 'guest_wifi_session_screen.dart';
 
 class GuestBottleScanScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
   bool _isProcessing = false;
   String _statusMessage = 'Ready to scan';
   late AnimationController _animationController;
+  int? _selectedMachineId;
 
   @override
   void initState() {
@@ -25,6 +27,25 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+    _loadMachines();
+  }
+
+  Future<void> _loadMachines() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final rows = await db.query(
+        'machines',
+        where: "status = 'active'",
+        orderBy: 'name ASC',
+      );
+      if (mounted && rows.isNotEmpty) {
+        setState(() {
+          _selectedMachineId = rows.first['id'] as int;
+        });
+      }
+    } catch (e) {
+      // Machines are optional for guest scanning
+    }
   }
 
   @override
@@ -34,6 +55,17 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
   }
 
   Future<void> _startBottleScan() async {
+    // Check rate limit first
+    final canScanResult = await _guestService.canScan();
+    if (canScanResult['can_scan'] != true) {
+      if (mounted) {
+        _showErrorDialog(
+          canScanResult['reason'] as String? ?? 'Daily scan limit reached',
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isScanning = true;
       _statusMessage = 'Insert your bottle now...';
@@ -48,9 +80,12 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
     });
 
     try {
+      // Use selected machine or fallback to first available
+      final machineId = _selectedMachineId?.toString() ?? '1';
+
       // Call guest service to process the scan
       final result = await _guestService.scanBottle(
-        machineIdentifier: 'ESP32_001', // In production, this would be dynamic
+        machineIdentifier: machineId,
       );
 
       if (result['success'] == true) {

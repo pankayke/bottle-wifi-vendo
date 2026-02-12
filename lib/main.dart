@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
+
 import 'providers/admin_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/bottle_provider.dart';
@@ -21,23 +21,87 @@ import 'services/storage_service.dart';
 import 'utils/constants.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Catch all unhandled async errors and Flutter framework errors so the app
+  // doesn't silently crash — instead errors are shown on screen.
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize SQLite factory based on platform.
-  // Android/iOS use native sqflite; desktop uses FFI; web uses FFI-web.
-  if (kIsWeb) {
-    databaseFactory = databaseFactoryFfiWeb;
-  } else if (defaultTargetPlatform == TargetPlatform.windows ||
-      defaultTargetPlatform == TargetPlatform.linux ||
-      defaultTargetPlatform == TargetPlatform.macOS) {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
+      // Forward Flutter framework errors (widget build errors, etc.)
+      FlutterError.onError = (FlutterErrorDetails details) {
+        FlutterError.presentError(details);
+        debugPrint('FlutterError: ${details.exception}\n${details.stack}');
+      };
+
+      // Initialize the local SQLite database (creates tables, seeds admin).
+      // On Android the sqflite plugin handles SQLite natively — no setup needed.
+      try {
+        await DatabaseHelper.instance.database;
+      } catch (e, stack) {
+        debugPrint('Database initialization failed: $e\n$stack');
+        // Show a visible error instead of crashing silently.
+        runApp(CrashErrorApp(error: 'DB Init Failed: $e'));
+        return;
+      }
+
+      runApp(const MyApp());
+    },
+    (error, stack) {
+      debugPrint('Uncaught error: $error\n$stack');
+      // Show crash on screen so we can read the error on the phone.
+      runApp(CrashErrorApp(error: error.toString()));
+    },
+  );
+}
+
+/// Minimal error screen shown when the app fails to start.
+/// Displays the error message on screen so it can be read on a
+/// physical device without needing logcat.
+class CrashErrorApp extends StatelessWidget {
+  final String error;
+  const CrashErrorApp({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        backgroundColor: Colors.red.shade900,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 80),
+                const SizedBox(height: 24),
+                const Text(
+                  'App Crash Report',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Text(
+                      error,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
-
-  // Initialize the local SQLite database (creates tables, seeds admin).
-  await DatabaseHelper.instance.database;
-
-  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -196,15 +260,15 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       backgroundColor: AppColors.primaryColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.wifi, size: 100, color: Colors.white),
-            const SizedBox(height: 24),
-            const Text(
+            Icon(Icons.wifi, size: 100, color: Colors.white),
+            SizedBox(height: 24),
+            Text(
               'Bottle WiFi Vendo',
               style: TextStyle(
                 fontSize: 28,
@@ -212,8 +276,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 48),
-            const CircularProgressIndicator(
+            SizedBox(height: 48),
+            CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],

@@ -13,20 +13,23 @@ class MachineStatusScreen extends StatefulWidget {
 }
 
 class _MachineStatusScreenState extends State<MachineStatusScreen> {
+  late final MachineProvider _machineProvider;
+
   @override
   void initState() {
     super.initState();
+    _machineProvider = context.read<MachineProvider>();
     // Defer provider calls to avoid notifyListeners() during build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
-      context.read<MachineProvider>().startAutoRefresh();
+      _machineProvider.startAutoRefresh();
     });
   }
 
   @override
   void dispose() {
-    // Stop auto-refresh when leaving screen
-    context.read<MachineProvider>().reset();
+    // Use cached reference instead of context.read() in dispose
+    _machineProvider.reset();
     super.dispose();
   }
 

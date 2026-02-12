@@ -1,4 +1,4 @@
-package com.example.bottle_wifi
+package com.bottlewifi.vendo
 
 import io.flutter.embedding.android.FlutterActivity
 

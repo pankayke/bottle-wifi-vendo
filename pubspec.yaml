@@ -52,8 +52,6 @@ dependencies:
   # Device Fingerprinting & Security
   device_info_plus: ^10.1.2
   crypto: ^3.0.5
-  sqflite_common_ffi: ^2.4.0+2
-  sqflite_common_ffi_web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

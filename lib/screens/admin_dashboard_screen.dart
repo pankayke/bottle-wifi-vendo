@@ -7,7 +7,10 @@ import '../utils/constants.dart';
 
 /// Admin dashboard with stats cards and bottle chart
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  /// Callback to switch tabs in the parent AdminShellScreen.
+  final void Function(int tabIndex)? onSwitchTab;
+
+  const AdminDashboardScreen({super.key, this.onSwitchTab});
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -285,7 +288,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 label: 'Add Machine',
                 color: AppColors.primaryColor,
                 onTap: () {
-                  // Quick actions are informational; use bottom nav to manage
+                  widget.onSwitchTab?.call(1); // Machines tab
                 },
               ),
             ),
@@ -295,16 +298,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 icon: Icons.confirmation_number_outlined,
                 label: 'New Voucher',
                 color: AppColors.warningColor,
-                onTap: () {},
+                onTap: () {
+                  widget.onSwitchTab?.call(3); // Vouchers tab
+                },
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _QuickActionButton(
-                icon: Icons.download_outlined,
-                label: 'Export Data',
+                icon: Icons.analytics_outlined,
+                label: 'Analytics',
                 color: AppColors.successColor,
-                onTap: () {},
+                onTap: () {
+                  widget.onSwitchTab?.call(4); // Analytics tab
+                },
               ),
             ),
           ],

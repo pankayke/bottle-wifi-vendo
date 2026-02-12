@@ -6,6 +6,7 @@ import '../models/machine.dart';
 import '../models/user.dart';
 import '../models/wifi_session.dart';
 import '../utils/api_exception.dart';
+import '../utils/constants.dart';
 import 'database_helper.dart';
 import 'storage_service.dart';
 
@@ -33,9 +34,9 @@ class ApiService {
       if (password != passwordConfirmation) {
         throw ApiException.validationError('Passwords do not match');
       }
-      if (password.length < 6) {
+      if (password.length < AppConstants.minPasswordLength) {
         throw ApiException.validationError(
-          'Password must be at least 6 characters',
+          'Password must be at least ${AppConstants.minPasswordLength} characters',
         );
       }
 

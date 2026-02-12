@@ -19,14 +19,7 @@ class AdminShellScreen extends StatefulWidget {
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
   int _currentIndex = 0;
-
-  final List<Widget> _screens = const [
-    AdminDashboardScreen(),
-    AdminMachineManagementScreen(),
-    AdminUserManagementScreen(),
-    AdminVoucherScreen(),
-    AdminAnalyticsScreen(),
-  ];
+  late final List<Widget> _screens;
 
   final List<NavigationDestination> _destinations = const [
     NavigationDestination(
@@ -59,10 +52,23 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   @override
   void initState() {
     super.initState();
+    _screens = [
+      AdminDashboardScreen(onSwitchTab: _switchToTab),
+      const AdminMachineManagementScreen(),
+      const AdminUserManagementScreen(),
+      const AdminVoucherScreen(),
+      const AdminAnalyticsScreen(),
+    ];
     // Load initial data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AdminProvider>().loadDashboardStats();
     });
+  }
+
+  void _switchToTab(int index) {
+    if (index >= 0 && index < _screens.length) {
+      setState(() => _currentIndex = index);
+    }
   }
 
   @override

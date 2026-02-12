@@ -134,6 +134,13 @@ class _GuestWifiSessionScreenState extends State<GuestWifiSessionScreen> {
                         child: Image.asset(
                           'assets/images/school_logo.jpg',
                           fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.school,
+                              size: 30,
+                              color: Colors.white,
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -354,37 +361,38 @@ class _GuestWifiSessionScreenState extends State<GuestWifiSessionScreen> {
 
                     const SizedBox(height: 12),
 
-                    // Session Token (for debugging)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Session Token:',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.white70,
+                    // Voucher code (visible only in debug mode)
+                    if (const bool.fromEnvironment('dart.vm.product') == false)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Voucher Code:',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white70,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.sessionToken,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.white,
-                              fontFamily: 'monospace',
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.sessionToken,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontFamily: 'monospace',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
