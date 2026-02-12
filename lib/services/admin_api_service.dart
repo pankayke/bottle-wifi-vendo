@@ -1,379 +1,370 @@
-import 'dart:convert';
-import 'dart:io';
-import 'dart:async';
-import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
+import 'package:sqflite/sqflite.dart';
 import '../models/bottle_log.dart';
 import '../models/machine.dart';
 import '../models/user.dart';
 import '../models/voucher.dart';
-import '../utils/api_exception.dart';
-import '../utils/constants.dart';
-import '../services/storage_service.dart';
+import 'database_helper.dart';
+import 'storage_service.dart';
 
-/// Admin-specific API service for admin panel operations
+/// Admin-specific local service for admin panel operations.
+/// All operations hit the on-device SQLite database.
 class AdminApiService {
-  final StorageService _storageService;
-  final String baseUrl;
+  final DatabaseHelper _db = DatabaseHelper.instance;
 
-  AdminApiService({required StorageService storageService, String? baseUrl})
-    : _storageService = storageService,
-      baseUrl = baseUrl ?? AppConstants.baseUrl;
-
-  Future<Map<String, String>> _getHeaders() async {
-    final headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-    final token = await _storageService.getToken();
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    return headers;
-  }
-
-  Map<String, dynamic> _handleResponse(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.isEmpty) return {'success': true};
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    }
-
-    Map<String, dynamic>? errorBody;
-    try {
-      errorBody = jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (_) {}
-
-    switch (response.statusCode) {
-      case 401:
-        throw ApiException.unauthorized();
-      case 403:
-        throw ApiException(
-          message: 'Access denied. Admin privileges required.',
-          statusCode: 403,
-        );
-      case 422:
-        final message = errorBody?['message'] as String? ?? 'Validation failed';
-        throw ApiException.validationError(message);
-      case 500:
-        throw ApiException.serverError();
-      default:
-        final message = errorBody?['message'] as String? ?? 'An error occurred';
-        throw ApiException(message: message, statusCode: response.statusCode);
-    }
-  }
-
-  Future<Map<String, dynamic>> _execute(
-    Future<http.Response> Function() request,
-  ) async {
-    try {
-      final response = await request().timeout(
-        AppConstants.connectionTimeout,
-        onTimeout: () => throw ApiException.timeout(),
-      );
-      return _handleResponse(response);
-    } on SocketException {
-      throw ApiException.networkError();
-    } on TimeoutException {
-      throw ApiException.timeout();
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException(message: 'Unexpected error: $e', statusCode: null);
-    }
-  }
+  // Constructor kept compatible with existing callers.
+  AdminApiService({required StorageService storageService, String? baseUrl});
 
   // ==================== Dashboard ====================
 
-  /// Get admin dashboard statistics
   Future<AdminDashboardStats> getDashboardStats() async {
     try {
-      final response = await _execute(
-        () async => http.get(
-          Uri.parse('$baseUrl/admin/dashboard'),
-          headers: await _getHeaders(),
+      final db = await _db.database;
+
+      int v(List<Map<String, dynamic>> r) => Sqflite.firstIntValue(r) ?? 0;
+
+      final totalMachines = v(
+        await db.rawQuery('SELECT COUNT(*) FROM machines'),
+      );
+      final activeMachines = v(
+        await db.rawQuery(
+          "SELECT COUNT(*) FROM machines WHERE status = 'active'",
+        ),
+      );
+      final offlineMachines = v(
+        await db.rawQuery('SELECT COUNT(*) FROM machines WHERE is_online = 0'),
+      );
+      final totalUsers = v(
+        await db.rawQuery("SELECT COUNT(*) FROM users WHERE role = 'user'"),
+      );
+      final totalBottles = v(
+        await db.rawQuery('SELECT COUNT(*) FROM bottle_logs'),
+      );
+      final todayStart = DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      ).toIso8601String();
+      final todayBottles = v(
+        await db.rawQuery(
+          'SELECT COUNT(*) FROM bottle_logs WHERE created_at >= ?',
+          [todayStart],
+        ),
+      );
+      final totalCredits = v(
+        await db.rawQuery(
+          'SELECT COALESCE(SUM(credits_awarded), 0) FROM bottle_logs',
         ),
       );
 
-      final data = response['data'] as Map<String, dynamic>? ?? response;
-      return AdminDashboardStats.fromJson(data);
-    } on ApiException {
-      // Return mock data if endpoint doesn't exist yet
+      // Daily bottles for last 7 days
+      final dailyBottles = <DailyBottleCount>[];
+      for (int i = 6; i >= 0; i--) {
+        final day = DateTime.now().subtract(Duration(days: i));
+        final dayStart = DateTime(
+          day.year,
+          day.month,
+          day.day,
+        ).toIso8601String();
+        final dayEnd = DateTime(
+          day.year,
+          day.month,
+          day.day,
+          23,
+          59,
+          59,
+        ).toIso8601String();
+        final count = v(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM bottle_logs WHERE created_at >= ? AND created_at <= ?',
+            [dayStart, dayEnd],
+          ),
+        );
+        dailyBottles.add(DailyBottleCount(date: day, count: count));
+      }
+
+      return AdminDashboardStats(
+        totalMachines: totalMachines,
+        activeMachines: activeMachines,
+        offlineMachines: offlineMachines,
+        totalUsers: totalUsers,
+        activeSessionsCount: 0,
+        totalBottlesProcessed: totalBottles,
+        todayBottles: todayBottles,
+        totalCreditsAwarded: totalCredits,
+        dailyBottles: dailyBottles,
+      );
+    } catch (e) {
+      debugPrint('Dashboard stats error: $e');
       return AdminDashboardStats.empty();
     }
   }
 
   // ==================== Machine Management ====================
 
-  /// Get all machines (admin)
   Future<List<Machine>> getAllMachines() async {
-    final response = await _execute(
-      () async => http.get(
-        Uri.parse('$baseUrl/admin/machines'),
-        headers: await _getHeaders(),
-      ),
-    );
-
-    final data = response['data'] as Map<String, dynamic>?;
-    final machinesList =
-        data?['machines'] as List? ?? response['machines'] as List? ?? [];
-
-    return machinesList
-        .map((json) => Machine.fromJson(json as Map<String, dynamic>))
+    final db = await _db.database;
+    final rows = await db.query('machines', orderBy: 'created_at DESC');
+    return rows
+        .map((r) => Machine.fromJson(DatabaseHelper.machineRowToJson(r)))
         .toList();
   }
 
-  /// Create a new machine
   Future<Machine> createMachine({
     required String name,
     required String location,
     String? macAddress,
     String? ipAddress,
   }) async {
-    final body = jsonEncode({
+    final db = await _db.database;
+    final now = DateTime.now().toIso8601String();
+    final id = await db.insert('machines', {
       'name': name,
       'location': location,
-      if (macAddress != null) 'mac_address': macAddress,
-      if (ipAddress != null) 'ip_address': ipAddress,
+      'mac_address': macAddress ?? '',
+      'ip_address': ipAddress ?? '',
+      'status': 'active',
+      'is_online': 1,
+      'last_online': now,
+      'total_bottles_processed': 0,
+      'created_at': now,
+      'updated_at': now,
     });
-
-    final response = await _execute(
-      () async => http.post(
-        Uri.parse('$baseUrl/admin/machines'),
-        headers: await _getHeaders(),
-        body: body,
-      ),
-    );
-
-    final data = response['data'] as Map<String, dynamic>? ?? response;
-    final machineData = data['machine'] as Map<String, dynamic>? ?? data;
-    return Machine.fromJson(machineData);
+    final row = (await db.query(
+      'machines',
+      where: 'id = ?',
+      whereArgs: [id],
+    )).first;
+    return Machine.fromJson(DatabaseHelper.machineRowToJson(row));
   }
 
-  /// Update machine status
   Future<void> updateMachineStatus(int machineId, String status) async {
-    await _execute(
-      () async => http.put(
-        Uri.parse('$baseUrl/admin/machines/$machineId/status'),
-        headers: await _getHeaders(),
-        body: jsonEncode({'status': status}),
-      ),
+    final db = await _db.database;
+    await db.update(
+      'machines',
+      {'status': status, 'updated_at': DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [machineId],
     );
   }
 
-  /// Get offline machines
+  Future<void> deleteMachine(int machineId) async {
+    final db = await _db.database;
+    await db.delete('machines', where: 'id = ?', whereArgs: [machineId]);
+  }
+
   Future<List<Machine>> getOfflineMachines() async {
-    final response = await _execute(
-      () async => http.get(
-        Uri.parse('$baseUrl/admin/machines/offline'),
-        headers: await _getHeaders(),
-      ),
+    final db = await _db.database;
+    final rows = await db.query(
+      'machines',
+      where: 'is_online = 0',
+      orderBy: 'updated_at DESC',
     );
-
-    final data = response['data'] as Map<String, dynamic>?;
-    final machinesList =
-        data?['machines'] as List? ?? response['machines'] as List? ?? [];
-
-    return machinesList
-        .map((json) => Machine.fromJson(json as Map<String, dynamic>))
+    return rows
+        .map((r) => Machine.fromJson(DatabaseHelper.machineRowToJson(r)))
         .toList();
   }
 
   // ==================== User Management ====================
 
-  /// Get all users (admin)
   Future<List<User>> getAllUsers({int page = 1, String? search}) async {
-    final queryParams = <String, String>{
-      'page': page.toString(),
-      if (search != null && search.isNotEmpty) 'search': search,
-    };
+    final db = await _db.database;
+    String? where;
+    List<dynamic>? whereArgs;
 
-    final response = await _execute(
-      () async => http.get(
-        Uri.parse('$baseUrl/admin/users').replace(queryParameters: queryParams),
-        headers: await _getHeaders(),
-      ),
+    if (search != null && search.isNotEmpty) {
+      where = "(name LIKE ? OR email LIKE ?) AND role = 'user'";
+      whereArgs = ['%$search%', '%$search%'];
+    } else {
+      where = "role = 'user'";
+    }
+
+    final rows = await db.query(
+      'users',
+      where: where,
+      whereArgs: whereArgs,
+      orderBy: 'created_at DESC',
     );
-
-    final data = response['data'] as Map<String, dynamic>?;
-
-    // Laravel paginate() returns users under 'data.data'
-    final usersList =
-        data?['data'] as List? ??
-        data?['users'] as List? ??
-        response['users'] as List? ??
-        [];
-
-    return usersList
-        .map((json) => User.fromJson(json as Map<String, dynamic>))
-        .toList();
+    return rows.map((r) => User.fromJson(r)).toList();
   }
 
-  /// Suspend a user
   Future<void> suspendUser(int userId, String reason) async {
-    await _execute(
-      () async => http.post(
-        Uri.parse('$baseUrl/admin/users/$userId/suspend'),
-        headers: await _getHeaders(),
-        body: jsonEncode({'reason': reason}),
-      ),
+    final db = await _db.database;
+    final now = DateTime.now().toIso8601String();
+    await db.update(
+      'users',
+      {'suspended_at': now, 'suspension_reason': reason, 'updated_at': now},
+      where: 'id = ?',
+      whereArgs: [userId],
     );
   }
 
-  /// Resume a suspended user
   Future<void> resumeUser(int userId) async {
-    await _execute(
-      () async => http.post(
-        Uri.parse('$baseUrl/admin/users/$userId/resume'),
-        headers: await _getHeaders(),
-      ),
+    final db = await _db.database;
+    await db.update(
+      'users',
+      {
+        'suspended_at': null,
+        'suspension_reason': null,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [userId],
     );
   }
 
-  /// Delete a user
   Future<void> deleteUser(int userId) async {
-    await _execute(
-      () async => http.delete(
-        Uri.parse('$baseUrl/admin/users/$userId'),
-        headers: await _getHeaders(),
-      ),
+    final db = await _db.database;
+    // Also delete related bottle logs
+    await db.delete('bottle_logs', where: 'user_id = ?', whereArgs: [userId]);
+    await db.delete('users', where: 'id = ?', whereArgs: [userId]);
+  }
+
+  Future<void> resetUserPassword(int userId) async {
+    final db = await _db.database;
+    await db.update(
+      'users',
+      {
+        'password_hash': DatabaseHelper.hashPassword('password'),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [userId],
     );
   }
 
-  /// Adjust user credits
   Future<void> adjustCredits(int userId, int amount, String reason) async {
-    await _execute(
-      () async => http.post(
-        Uri.parse('$baseUrl/admin/users/$userId/credits'),
-        headers: await _getHeaders(),
-        body: jsonEncode({'amount': amount, 'reason': reason}),
-      ),
+    final db = await _db.database;
+    final now = DateTime.now().toIso8601String();
+    await db.rawUpdate(
+      'UPDATE users SET credits = MAX(0, credits + ?), updated_at = ? WHERE id = ?',
+      [amount, now, userId],
     );
   }
 
   // ==================== Voucher Management ====================
 
-  /// Generate a voucher
   Future<Voucher> generateVoucher({
     required int minutes,
     String type = 'single_use',
     int count = 1,
     DateTime? expiresAt,
   }) async {
-    final response = await _execute(
-      () async => http.post(
-        Uri.parse('$baseUrl/voucher/generate'),
-        headers: await _getHeaders(),
-        body: jsonEncode({
-          'minutes': minutes,
-          'type': type,
-          'count': count,
-          if (expiresAt != null)
-            'expires_in_days': expiresAt
-                .difference(DateTime.now())
-                .inDays
-                .clamp(1, 365),
-        }),
-      ),
-    );
+    final db = await _db.database;
+    final now = DateTime.now().toIso8601String();
+    final code = DatabaseHelper.generateVoucherCode();
 
-    final vouchers = response['vouchers'] as List?;
-    if (vouchers != null && vouchers.isNotEmpty) {
-      return Voucher.fromJson(vouchers.first as Map<String, dynamic>);
-    }
-    final data = response['data'] as Map<String, dynamic>? ?? response;
-    final voucherData = data['voucher'] as Map<String, dynamic>? ?? data;
-    return Voucher.fromJson(voucherData);
+    final id = await db.insert('vouchers', {
+      'code': code,
+      'minutes': minutes,
+      'status': 'active',
+      'type': type,
+      'expires_at': expiresAt?.toIso8601String(),
+      'created_at': now,
+    });
+
+    final row = (await db.query(
+      'vouchers',
+      where: 'id = ?',
+      whereArgs: [id],
+    )).first;
+    return Voucher.fromJson(row);
   }
 
-  /// Get all vouchers
   Future<List<Voucher>> getVouchers() async {
-    final response = await _execute(
-      () async => http.get(
-        Uri.parse('$baseUrl/voucher/list'),
-        headers: await _getHeaders(),
-      ),
-    );
-
-    // Handle paginated response: { vouchers: { data: [...], current_page: 1, ... } }
-    final vouchersField = response['vouchers'];
-    List vouchersList;
-    if (vouchersField is Map) {
-      vouchersList = vouchersField['data'] as List? ?? [];
-    } else if (vouchersField is List) {
-      vouchersList = vouchersField;
-    } else {
-      final data = response['data'] as Map<String, dynamic>?;
-      vouchersList = data?['vouchers'] as List? ?? [];
-    }
-
-    return vouchersList
-        .map((json) => Voucher.fromJson(json as Map<String, dynamic>))
-        .toList();
+    final db = await _db.database;
+    final rows = await db.query('vouchers', orderBy: 'created_at DESC');
+    return rows.map((r) => Voucher.fromJson(r)).toList();
   }
 
-  /// Revoke a voucher
   Future<void> revokeVoucher(int voucherId, {required String reason}) async {
-    await _execute(
-      () async => http.post(
-        Uri.parse('$baseUrl/voucher/$voucherId/revoke'),
-        headers: await _getHeaders(),
-        body: jsonEncode({'reason': reason}),
-      ),
+    final db = await _db.database;
+    await db.update(
+      'vouchers',
+      {'status': 'revoked', 'revoke_reason': reason},
+      where: 'id = ?',
+      whereArgs: [voucherId],
     );
   }
 
   // ==================== Analytics ====================
 
-  /// Get bottle analytics (admin-scoped, all users' data)
   Future<Map<String, dynamic>> getBottleAnalytics({
     String period = 'month',
   }) async {
     try {
-      final response = await _execute(
-        () async => http.get(
-          Uri.parse(
-            '$baseUrl/admin/analytics/bottles',
-          ).replace(queryParameters: {'period': period}),
-          headers: await _getHeaders(),
-        ),
-      );
-      return response['data'] as Map<String, dynamic>? ?? {};
-    } on ApiException {
+      final db = await _db.database;
+      final days = period == 'week' ? 7 : (period == 'year' ? 365 : 30);
+      final since = DateTime.now()
+          .subtract(Duration(days: days))
+          .toIso8601String();
+
+      final total =
+          Sqflite.firstIntValue(
+            await db.rawQuery(
+              'SELECT COUNT(*) FROM bottle_logs WHERE created_at >= ?',
+              [since],
+            ),
+          ) ??
+          0;
+      final credits =
+          Sqflite.firstIntValue(
+            await db.rawQuery(
+              'SELECT COALESCE(SUM(credits_awarded), 0) FROM bottle_logs WHERE created_at >= ?',
+              [since],
+            ),
+          ) ??
+          0;
+
+      return {
+        'total_bottles': total,
+        'total_credits': credits,
+        'period': period,
+      };
+    } catch (e) {
+      debugPrint('Analytics error: $e');
       return {};
     }
   }
 
-  /// Get bottle logs for analytics
   Future<List<BottleLog>> getBottleLogs({
     int page = 1,
     int? machineId,
     DateTime? from,
     DateTime? to,
   }) async {
-    final queryParams = <String, String>{
-      'page': page.toString(),
-      if (machineId != null) 'machine_id': machineId.toString(),
-      if (from != null) 'from': from.toIso8601String(),
-      if (to != null) 'to': to.toIso8601String(),
-    };
-
     try {
-      final response = await _execute(
-        () async => http.get(
-          Uri.parse(
-            '$baseUrl/bottles/history',
-          ).replace(queryParameters: queryParams),
-          headers: await _getHeaders(),
-        ),
+      final db = await _db.database;
+      final conditions = <String>[];
+      final args = <dynamic>[];
+
+      if (machineId != null) {
+        conditions.add('machine_id = ?');
+        args.add(machineId);
+      }
+      if (from != null) {
+        conditions.add('created_at >= ?');
+        args.add(from.toIso8601String());
+      }
+      if (to != null) {
+        conditions.add('created_at <= ?');
+        args.add(to.toIso8601String());
+      }
+
+      final where = conditions.isNotEmpty ? conditions.join(' AND ') : null;
+      final offset = (page - 1) * 20;
+
+      final rows = await db.query(
+        'bottle_logs',
+        where: where,
+        whereArgs: args.isNotEmpty ? args : null,
+        orderBy: 'created_at DESC',
+        limit: 20,
+        offset: offset,
       );
-
-      final data = response['data'] as Map<String, dynamic>?;
-      final logsList =
-          data?['bottles'] as List? ?? response['bottles'] as List? ?? [];
-
-      return logsList
-          .map((json) => BottleLog.fromJson(json as Map<String, dynamic>))
-          .toList();
-    } on ApiException {
+      return rows.map((r) => BottleLog.fromJson(r)).toList();
+    } catch (e) {
+      debugPrint('Get bottle logs error: $e');
       return [];
     }
   }

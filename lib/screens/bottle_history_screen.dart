@@ -18,7 +18,7 @@ class _BottleHistoryScreenState extends State<BottleHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
     _scrollController.addListener(_onScroll);
   }
 

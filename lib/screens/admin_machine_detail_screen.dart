@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/machine.dart';
+import '../providers/admin_provider.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
 
-/// Machine detail screen showing stats, history, heartbeat log
-class AdminMachineDetailScreen extends StatelessWidget {
+/// Machine detail screen showing stats and info
+class AdminMachineDetailScreen extends StatefulWidget {
   final Machine machine;
 
   const AdminMachineDetailScreen({super.key, required this.machine});
+
+  @override
+  State<AdminMachineDetailScreen> createState() =>
+      _AdminMachineDetailScreenState();
+}
+
+class _AdminMachineDetailScreenState extends State<AdminMachineDetailScreen> {
+  Machine get machine => widget.machine;
 
   Color get _statusColor {
     if (machine.isOnline) return AppColors.successColor;
@@ -19,6 +29,50 @@ class AdminMachineDetailScreen extends StatelessWidget {
     if (machine.isOnline) return 'Online';
     if (machine.isInMaintenance) return 'Maintenance';
     return 'Offline';
+  }
+
+  void _confirmDeleteMachine() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.delete_forever, color: Colors.red, size: 48),
+        title: const Text('Delete Machine'),
+        content: Text(
+          'Are you sure you want to delete "${machine.name}"?\n\n'
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final provider = context.read<AdminProvider>();
+      final success = await provider.deleteMachine(machine.id);
+
+      if (!mounted) return;
+
+      if (success) {
+        Helpers.showSnackbar(context, 'Machine deleted successfully');
+        Navigator.pop(context); // Go back to machine list
+      } else {
+        Helpers.showSnackbar(
+          context,
+          provider.errorMessage ?? 'Failed to delete machine',
+          isError: true,
+        );
+      }
+    }
   }
 
   @override
@@ -42,10 +96,27 @@ class AdminMachineDetailScreen extends StatelessWidget {
 
           // Statistics
           _buildStatsCard(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
-          // Heartbeat log placeholder
-          _buildHeartbeatCard(),
+          // Delete machine button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _confirmDeleteMachine,
+              icon: const Icon(Icons.delete_forever, color: Colors.red),
+              label: const Text(
+                'Delete Machine',
+                style: TextStyle(color: Colors.red),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -56,14 +127,14 @@ class AdminMachineDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_statusColor, _statusColor.withOpacity(0.7)],
+          colors: [_statusColor, _statusColor.withValues(alpha: 0.7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: _statusColor.withOpacity(0.3),
+            color: _statusColor.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -74,7 +145,7 @@ class AdminMachineDetailScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(Icons.router, color: Colors.white, size: 40),
@@ -99,7 +170,7 @@ class AdminMachineDetailScreen extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -203,60 +274,6 @@ class AdminMachineDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeartbeatCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.monitor_heart, color: AppColors.primaryColor),
-                SizedBox(width: 8),
-                Text(
-                  'Heartbeat Log',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.favorite, size: 48, color: Colors.grey.shade300),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Last heartbeat: ${machine.lastOnline != null ? Helpers.formatDateTime(machine.lastOnline!) : "No heartbeat received"}',
-                    style: TextStyle(color: Colors.grey.shade600),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'ESP32 sends heartbeat every 60 seconds',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _infoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -290,7 +307,7 @@ class AdminMachineDetailScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: color, size: 28),

@@ -27,9 +27,9 @@ class Helpers {
     final seconds = duration.inSeconds.remainder(60);
 
     if (hours > 0) {
-      return '$hours hr ${minutes} min';
+      return '$hours hr $minutes min';
     } else if (minutes > 0) {
-      return '$minutes min ${seconds} sec';
+      return '$minutes min $seconds sec';
     } else {
       return '$seconds sec';
     }

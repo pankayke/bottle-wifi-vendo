@@ -1,7 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// Sentry disabled for development
-// import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'providers/admin_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/bottle_provider.dart';
@@ -15,16 +16,26 @@ import 'screens/login_screen.dart';
 import 'screens/voucher_entry_screen.dart';
 import 'services/admin_api_service.dart';
 import 'services/api_service.dart';
+import 'services/database_helper.dart';
 import 'services/storage_service.dart';
 import 'utils/constants.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Sentry disabled for development - configure DSN before production
-  // await SentryFlutter.init((options) {
-  //   options.dsn = 'YOUR_SENTRY_DSN_HERE';
-  // }, appRunner: () => runApp(const MyApp()));
+  // Initialize SQLite factory based on platform.
+  // Android/iOS use native sqflite; desktop uses FFI; web uses FFI-web.
+  if (kIsWeb) {
+    databaseFactory = databaseFactoryFfiWeb;
+  } else if (defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux ||
+      defaultTargetPlatform == TargetPlatform.macOS) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
+  // Initialize the local SQLite database (creates tables, seeds admin).
+  await DatabaseHelper.instance.database;
 
   runApp(const MyApp());
 }
@@ -64,7 +75,6 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Bottle WiFi Vendo',
         debugShowCheckedModeBanner: false,
-        // navigatorObservers: [SentryNavigatorObserver()],
         builder: (context, widget) {
           return widget ?? const SizedBox.shrink();
         },
@@ -114,6 +124,16 @@ class MyApp extends StatelessWidget {
             scrolledUnderElevation: 1,
           ),
         ),
+        // On web hard refresh, always start from SplashScreen for auth check
+        // regardless of the current URL hash (e.g. /#/login).
+        onGenerateInitialRoutes: (String initialRoute) {
+          return [
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/'),
+              builder: (_) => const SplashScreen(),
+            ),
+          ];
+        },
         routes: {
           '/': (context) => const SplashScreen(),
           '/access-selection': (context) => const AccessModeSelectionScreen(),
@@ -152,15 +172,21 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
-    // If admin is already logged in, go straight to admin panel
-    if (authProvider.isAuthenticated && authProvider.user?.isAdmin == true) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const AdminShellScreen()),
-      );
+    if (authProvider.isAuthenticated) {
+      // Redirect based on user role
+      if (authProvider.user?.isAdmin == true) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const AdminShellScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        );
+      }
       return;
     }
 
-    // Otherwise show access mode selection
+    // Not authenticated — show access mode selection
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => const AccessModeSelectionScreen(),

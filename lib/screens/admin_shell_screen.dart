@@ -105,7 +105,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           backgroundColor: Colors.white,
           elevation: 8,
           shadowColor: Colors.black26,
-          indicatorColor: AppColors.primaryColor.withOpacity(0.15),
+          indicatorColor: AppColors.primaryColor.withValues(alpha: 0.15),
         ),
       ),
     );

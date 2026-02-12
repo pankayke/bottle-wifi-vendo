@@ -16,9 +16,11 @@ class _MachineStatusScreenState extends State<MachineStatusScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
-    // Start auto-refresh
-    context.read<MachineProvider>().startAutoRefresh();
+    // Defer provider calls to avoid notifyListeners() during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+      context.read<MachineProvider>().startAutoRefresh();
+    });
   }
 
   @override
@@ -127,7 +129,7 @@ class _MachineStatusScreenState extends State<MachineStatusScreen> {
 
                 // Total bottles processed
                 Container(
-                  color: AppColors.primaryLight.withOpacity(0.2),
+                  color: AppColors.primaryLight.withValues(alpha: 0.2),
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,

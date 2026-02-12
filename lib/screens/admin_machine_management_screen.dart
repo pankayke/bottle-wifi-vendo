@@ -113,15 +113,14 @@ class _AdminMachineManagementScreenState
                             : null,
                       );
                       if (ctx.mounted) Navigator.pop(ctx);
-                      if (mounted) {
-                        Helpers.showSnackbar(
-                          context,
-                          success
-                              ? 'Machine added successfully!'
-                              : admin.errorMessage ?? 'Failed to add machine',
-                          isError: !success,
-                        );
-                      }
+                      if (!context.mounted) return;
+                      Helpers.showSnackbar(
+                        context,
+                        success
+                            ? 'Machine added successfully!'
+                            : admin.errorMessage ?? 'Failed to add machine',
+                        isError: !success,
+                      );
                     },
               icon: admin.isLoading
                   ? const SizedBox(
@@ -259,7 +258,7 @@ class _MachineCard extends StatelessWidget {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: _statusColor.withOpacity(0.1),
+                      color: _statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(Icons.router, color: _statusColor, size: 24),
@@ -297,7 +296,7 @@ class _MachineCard extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: _statusColor.withOpacity(0.1),
+                      color: _statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(

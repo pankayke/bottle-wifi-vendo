@@ -3,7 +3,7 @@ import '../services/guest_service.dart';
 import 'guest_wifi_session_screen.dart';
 
 class GuestBottleScanScreen extends StatefulWidget {
-  const GuestBottleScanScreen({Key? key}) : super(key: key);
+  const GuestBottleScanScreen({super.key});
 
   @override
   State<GuestBottleScanScreen> createState() => _GuestBottleScanScreenState();
@@ -60,9 +60,11 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
             context,
             MaterialPageRoute(
               builder: (context) => GuestWifiSessionScreen(
-                sessionToken: result['session']['token'],
-                minutes: result['session']['minutes'],
-                expiresAt: DateTime.parse(result['session']['expires_at']),
+                sessionToken: result['session']['voucher_code'] as String,
+                minutes: result['session']['minutes_granted'] as int,
+                expiresAt: DateTime.parse(
+                  result['session']['expires_at'] as String,
+                ),
               ),
             ),
           );
@@ -136,7 +138,7 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
                             width: 150,
                             height: 150,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -151,7 +153,7 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
                           width: 150,
                           height: 150,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -240,7 +242,7 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Row(
@@ -253,7 +255,7 @@ class _GuestBottleScanScreenState extends State<GuestBottleScanScreen>
                           ),
                           SizedBox(width: 8),
                           Text(
-                            'Earn 30 minutes of free WiFi per bottle',
+                            'Earn 20 minutes of free WiFi per bottle',
                             style: TextStyle(fontSize: 12, color: Colors.white),
                           ),
                         ],

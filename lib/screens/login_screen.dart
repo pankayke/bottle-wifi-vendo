@@ -56,15 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
-      String errorMsg = authProvider.errorMessage ?? 'Login failed';
-
-      // Show helpful message if backend is not available
-      if (errorMsg.contains('Failed to fetch') ||
-          errorMsg.contains('SocketException')) {
-        errorMsg =
-            'Cannot connect to server. Make sure your Laravel backend is running at http://localhost:8000';
-      }
-
+      final errorMsg = authProvider.errorMessage ?? 'Login failed';
       Helpers.showSnackbar(context, errorMsg, isError: true);
     }
   }
@@ -73,6 +65,181 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => const RegisterScreen()));
+  }
+
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool isLoading = false;
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: const [
+                  Icon(Icons.lock_reset, color: AppColors.primaryColor),
+                  SizedBox(width: 8),
+                  Text('Forgot Password'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Enter your email address to reset your password.',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.defaultBorderRadius,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading ? null : () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final email = emailController.text.trim();
+                          if (email.isEmpty) {
+                            Helpers.showSnackbar(
+                              context,
+                              'Please enter your email',
+                              isError: true,
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => isLoading = true);
+
+                          try {
+                            final apiService = context
+                                .read<AuthProvider>()
+                                .apiService;
+                            await apiService.forgotPassword(email: email);
+                            if (!mounted) return;
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            _showPasswordResetSuccessDialog();
+                          } catch (e) {
+                            setDialogState(() => isLoading = false);
+                            if (!mounted) return;
+                            Helpers.showSnackbar(
+                              context,
+                              e.toString().replaceFirst('Exception: ', ''),
+                              isError: true,
+                            );
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Reset Password'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showPasswordResetSuccessDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: const [
+              Icon(Icons.check_circle, color: Colors.green, size: 28),
+              SizedBox(width: 8),
+              Text('Password Reset'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Your password has been successfully reset.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  children: const [
+                    Text(
+                      'Your new password is:',
+                      style: TextStyle(fontSize: 13, color: Colors.black54),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'password',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Please change your password after logging in.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK, Got it'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -110,7 +277,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primaryColor.withOpacity(0.2),
+                            color: AppColors.primaryColor.withValues(
+                              alpha: 0.2,
+                            ),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),
@@ -201,7 +370,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
+
+                  // Forgot Password
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _showForgotPasswordDialog,
+                      child: const Text(
+                        'Forgot Password?',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
 
                   // Login Button
                   Consumer<AuthProvider>(

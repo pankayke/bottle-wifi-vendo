@@ -5,6 +5,16 @@ import '../models/user.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
 
+/// Format minutes into a readable WiFi time string
+String _formatWifiTime(int minutes) {
+  if (minutes <= 0) return '0 min';
+  final hours = minutes ~/ 60;
+  final mins = minutes % 60;
+  if (hours == 0) return '$mins min';
+  if (mins == 0) return '${hours}h';
+  return '${hours}h ${mins}m';
+}
+
 /// User management screen for admin
 class AdminUserManagementScreen extends StatefulWidget {
   const AdminUserManagementScreen({super.key});
@@ -105,28 +115,148 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
 
     showDialog(
       context: context,
+      builder: (ctx) {
+        String previewText = '';
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: const Text('Adjust WiFi Credits'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Current credits: ${user.credits} min'
+                    ' (${_formatWifiTime(user.credits)})',
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Rate: 1 credit = 1 minute of WiFi',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Minutes to add/deduct',
+                      hintText: 'Positive to add, negative to deduct',
+                      suffixText: 'min',
+                    ),
+                    onChanged: (val) {
+                      final amount = int.tryParse(val.trim());
+                      setDialogState(() {
+                        if (amount != null) {
+                          final newTotal = user.credits + amount;
+                          previewText = amount > 0
+                              ? '+$amount min → New balance: $newTotal min (${_formatWifiTime(newTotal)})'
+                              : '$amount min → New balance: $newTotal min (${_formatWifiTime(newTotal < 0 ? 0 : newTotal)})';
+                        } else {
+                          previewText = '';
+                        }
+                      });
+                    },
+                  ),
+                  if (previewText.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Text(
+                        previewText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.blue.shade800,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: reasonController,
+                    decoration: const InputDecoration(
+                      labelText: 'Reason',
+                      hintText: 'Enter reason for adjustment',
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final amount = int.tryParse(amountController.text.trim());
+                    final reason = reasonController.text.trim();
+                    if (amount == null || reason.isEmpty) return;
+                    Navigator.pop(ctx);
+                    final success = await context
+                        .read<AdminProvider>()
+                        .adjustCredits(user.id, amount, reason);
+                    if (mounted) {
+                      final admin = context.read<AdminProvider>();
+                      Helpers.showSnackbar(
+                        context,
+                        success
+                            ? 'Credits adjusted for ${user.name} ($amount min)'
+                            : admin.errorMessage ?? 'Failed to adjust credits',
+                        isError: !success,
+                      );
+                    }
+                  },
+                  child: const Text('Adjust'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showConvertToVoucherDialog(User user) {
+    final minutesController = TextEditingController();
+    final wifiMinutes = 30; // Default WiFi session length
+
+    showDialog(
+      context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Adjust Credits'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.confirmation_number, color: Colors.green.shade700),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Convert Credits to Voucher')),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Current credits: ${user.credits}'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountController,
-              keyboardType: const TextInputType.numberWithOptions(signed: true),
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                hintText: 'Positive to add, negative to deduct',
-              ),
+            Text(
+              '${user.name} has ${user.credits} credit minutes available.',
+              style: const TextStyle(fontSize: 14),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Reason',
-                hintText: 'Enter reason for adjustment',
+              controller: minutesController..text = wifiMinutes.toString(),
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Minutes for voucher',
+                hintText: 'e.g. 30, 60, 120',
+                helperText: 'Max: ${user.credits} minutes',
+                suffixText: 'min',
               ),
             ),
           ],
@@ -136,28 +266,94 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
-          FilledButton(
+          FilledButton.icon(
             onPressed: () async {
-              final amount = int.tryParse(amountController.text.trim());
-              final reason = reasonController.text.trim();
-              if (amount == null || reason.isEmpty) return;
-              Navigator.pop(ctx);
-              final success = await context.read<AdminProvider>().adjustCredits(
-                user.id,
-                amount,
-                reason,
-              );
-              if (mounted) {
+              final minutes = int.tryParse(minutesController.text.trim());
+              if (minutes == null || minutes <= 0) {
                 Helpers.showSnackbar(
                   context,
-                  success
-                      ? 'Credits adjusted for ${user.name}'
-                      : 'Failed to adjust credits',
-                  isError: !success,
+                  'Please enter a valid number of minutes',
+                  isError: true,
                 );
+                return;
+              }
+              if (minutes > user.credits) {
+                Helpers.showSnackbar(
+                  context,
+                  'User only has ${user.credits} credit minutes',
+                  isError: true,
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final admin = context.read<AdminProvider>();
+              final voucher = await admin.convertCreditsToVoucher(
+                userId: user.id,
+                minutes: minutes,
+              );
+              if (mounted) {
+                if (voucher != null) {
+                  _showVoucherResultDialog(voucher.code, minutes);
+                } else {
+                  Helpers.showSnackbar(
+                    context,
+                    admin.errorMessage ?? 'Failed to generate voucher',
+                    isError: true,
+                  );
+                }
               }
             },
-            child: const Text('Adjust'),
+            icon: const Icon(Icons.confirmation_number, size: 18),
+            label: const Text('Generate Voucher'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVoucherResultDialog(String code, int minutes) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Icon(Icons.check_circle, size: 48, color: Colors.green.shade600),
+        title: const Text('Voucher Generated!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$minutes minutes WiFi voucher created:'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.primaryColor.withValues(alpha: 0.3),
+                ),
+              ),
+              child: SelectableText(
+                code,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                  color: AppColors.primaryColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Share this code with the user',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Done'),
           ),
         ],
       ),
@@ -197,6 +393,46 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
               backgroundColor: AppColors.errorColor,
             ),
             child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showResetPasswordDialog(User user) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.lock_reset, size: 48, color: Colors.orange),
+        title: const Text('Reset Password'),
+        content: Text(
+          'Reset password for ${user.name} (${user.email}) to the default password "password"?\n\nThe user should change it after logging in.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await context
+                  .read<AdminProvider>()
+                  .resetUserPassword(user.id);
+              if (mounted) {
+                Helpers.showSnackbar(
+                  context,
+                  success
+                      ? 'Password reset for ${user.name}. New password: "password"'
+                      : context.read<AdminProvider>().errorMessage ??
+                            'Failed to reset password',
+                  isError: !success,
+                );
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Reset'),
           ),
         ],
       ),
@@ -290,18 +526,21 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                             onSuspend: () => _showSuspendDialog(user),
                             onResume: () async {
                               final success = await admin.resumeUser(user.id);
-                              if (mounted) {
-                                Helpers.showSnackbar(
-                                  context,
-                                  success
-                                      ? '${user.name} resumed'
-                                      : 'Failed to resume user',
-                                  isError: !success,
-                                );
-                              }
+                              if (!context.mounted) return;
+                              Helpers.showSnackbar(
+                                context,
+                                success
+                                    ? '${user.name} resumed'
+                                    : 'Failed to resume user',
+                                isError: !success,
+                              );
                             },
                             onAdjustCredits: () =>
                                 _showAdjustCreditsDialog(user),
+                            onConvertToVoucher: () =>
+                                _showConvertToVoucherDialog(user),
+                            onResetPassword: () =>
+                                _showResetPasswordDialog(user),
                             onDelete: () => _showDeleteDialog(user),
                           );
                         },
@@ -363,7 +602,7 @@ class _FilterChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? chipColor.withOpacity(0.15)
+              ? chipColor.withValues(alpha: 0.15)
               : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
@@ -388,6 +627,8 @@ class _UserCard extends StatelessWidget {
   final VoidCallback onSuspend;
   final VoidCallback onResume;
   final VoidCallback onAdjustCredits;
+  final VoidCallback onConvertToVoucher;
+  final VoidCallback onResetPassword;
   final VoidCallback onDelete;
 
   const _UserCard({
@@ -395,6 +636,8 @@ class _UserCard extends StatelessWidget {
     required this.onSuspend,
     required this.onResume,
     required this.onAdjustCredits,
+    required this.onConvertToVoucher,
+    required this.onResetPassword,
     required this.onDelete,
   });
 
@@ -412,8 +655,8 @@ class _UserCard extends StatelessWidget {
             CircleAvatar(
               radius: 24,
               backgroundColor: user.isSuspended
-                  ? AppColors.errorColor.withOpacity(0.1)
-                  : AppColors.primaryColor.withOpacity(0.1),
+                  ? AppColors.errorColor.withValues(alpha: 0.1)
+                  : AppColors.primaryColor.withValues(alpha: 0.1),
               child: Text(
                 user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
                 style: TextStyle(
@@ -451,7 +694,9 @@ class _UserCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryColor.withOpacity(0.1),
+                            color: AppColors.primaryColor.withValues(
+                              alpha: 0.1,
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
@@ -478,7 +723,7 @@ class _UserCard extends StatelessWidget {
                       Icon(Icons.stars, size: 14, color: Colors.amber.shade700),
                       const SizedBox(width: 4),
                       Text(
-                        '${user.credits} credits',
+                        '${user.credits} min (${_formatWifiTime(user.credits)})',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade600,
@@ -492,8 +737,8 @@ class _UserCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: user.isSuspended
-                              ? AppColors.errorColor.withOpacity(0.1)
-                              : AppColors.successColor.withOpacity(0.1),
+                              ? AppColors.errorColor.withValues(alpha: 0.1)
+                              : AppColors.successColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -524,6 +769,10 @@ class _UserCard extends StatelessWidget {
                       onResume();
                     case 'credits':
                       onAdjustCredits();
+                    case 'voucher':
+                      onConvertToVoucher();
+                    case 'reset_password':
+                      onResetPassword();
                     case 'delete':
                       onDelete();
                   }
@@ -557,6 +806,28 @@ class _UserCard extends StatelessWidget {
                     child: ListTile(
                       leading: Icon(Icons.stars, color: Colors.amber),
                       title: Text('Adjust Credits'),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  if (user.credits >= 30)
+                    PopupMenuItem(
+                      value: 'voucher',
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.confirmation_number,
+                          color: Colors.green.shade700,
+                        ),
+                        title: const Text('Convert to Voucher'),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  const PopupMenuItem(
+                    value: 'reset_password',
+                    child: ListTile(
+                      leading: Icon(Icons.lock_reset, color: Colors.orange),
+                      title: Text('Reset Password'),
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                     ),

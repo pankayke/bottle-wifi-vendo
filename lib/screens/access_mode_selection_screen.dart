@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import 'dashboard_screen.dart';
 
 class AccessModeSelectionScreen extends StatelessWidget {
-  const AccessModeSelectionScreen({Key? key}) : super(key: key);
+  const AccessModeSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +26,7 @@ class AccessModeSelectionScreen extends StatelessWidget {
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF1565C0).withOpacity(0.2),
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.2),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -95,16 +98,39 @@ class AccessModeSelectionScreen extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  // Account Mode (Optional)
-                  _AccessModeCard(
-                    icon: Icons.person,
-                    title: 'Login',
-                    subtitle: 'Access your account (optional)',
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
-                    ),
-                    isOutlined: true,
-                    onTap: () => _navigateToLogin(context),
+                  // Account Mode (Optional) / Back to Dashboard
+                  Consumer<AuthProvider>(
+                    builder: (context, authProvider, _) {
+                      final isLoggedIn = authProvider.isAuthenticated;
+                      return Column(
+                        children: [
+                          _AccessModeCard(
+                            icon: isLoggedIn ? Icons.dashboard : Icons.person,
+                            title: isLoggedIn ? 'Back to Dashboard' : 'Login',
+                            subtitle: isLoggedIn
+                                ? 'Return to your account'
+                                : 'Access your account (optional)',
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
+                            ),
+                            isOutlined: !isLoggedIn,
+                            onTap: () => _navigateToLogin(context),
+                          ),
+                          if (isLoggedIn) ...[
+                            const SizedBox(height: 16),
+                            _AccessModeCard(
+                              icon: Icons.logout,
+                              title: 'Logout',
+                              subtitle: 'Sign out of your account',
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFE53935), Color(0xFFC62828)],
+                              ),
+                              onTap: () => _handleLogout(context),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -133,7 +159,25 @@ class AccessModeSelectionScreen extends StatelessWidget {
   }
 
   void _navigateToLogin(BuildContext context) {
-    Navigator.pushNamed(context, '/login');
+    final authProvider = context.read<AuthProvider>();
+    if (authProvider.isAuthenticated) {
+      // Already logged in — go straight to dashboard
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        (route) => false,
+      );
+    } else {
+      Navigator.pushNamed(context, '/login');
+    }
+  }
+
+  void _handleLogout(BuildContext context) async {
+    final authProvider = context.read<AuthProvider>();
+    await authProvider.logout();
+    if (context.mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+    }
   }
 }
 
@@ -169,7 +213,7 @@ class _AccessModeCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -181,8 +225,8 @@ class _AccessModeCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isOutlined
-                    ? const Color(0xFF1565C0).withOpacity(0.1)
-                    : Colors.white.withOpacity(0.2),
+                    ? const Color(0xFF1565C0).withValues(alpha: 0.1)
+                    : Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -213,7 +257,7 @@ class _AccessModeCard extends StatelessWidget {
                       fontSize: 14,
                       color: isOutlined
                           ? const Color(0xFF757575)
-                          : Colors.white.withOpacity(0.9),
+                          : Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
                 ],
@@ -222,8 +266,8 @@ class _AccessModeCard extends StatelessWidget {
             Icon(
               Icons.arrow_forward_ios,
               color: isOutlined
-                  ? const Color(0xFF1565C0).withOpacity(0.5)
-                  : Colors.white.withOpacity(0.7),
+                  ? const Color(0xFF1565C0).withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.7),
               size: 20,
             ),
           ],

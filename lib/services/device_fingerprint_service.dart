@@ -23,7 +23,16 @@ class DeviceFingerprintService {
     Map<String, String> components = {};
 
     try {
-      if (defaultTargetPlatform == TargetPlatform.android) {
+      if (kIsWeb) {
+        final webInfo = await deviceInfoPlugin.webBrowserInfo;
+        components = {
+          'platform': 'web',
+          'browser': webInfo.browserName.name,
+          'userAgent': webInfo.userAgent ?? 'unknown',
+          'language': webInfo.language ?? 'unknown',
+          'vendor': webInfo.vendor ?? 'unknown',
+        };
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
         final androidInfo = await deviceInfoPlugin.androidInfo;
         components = {
           'platform': 'android',
@@ -42,15 +51,6 @@ class DeviceFingerprintService {
           'name': iosInfo.name,
           'systemVersion': iosInfo.systemVersion,
           'identifierForVendor': iosInfo.identifierForVendor ?? 'unknown',
-        };
-      } else if (kIsWeb) {
-        final webInfo = await deviceInfoPlugin.webBrowserInfo;
-        components = {
-          'platform': 'web',
-          'browser': webInfo.browserName.name,
-          'userAgent': webInfo.userAgent ?? 'unknown',
-          'language': webInfo.language ?? 'unknown',
-          'vendor': webInfo.vendor ?? 'unknown',
         };
       } else {
         // Desktop fallback

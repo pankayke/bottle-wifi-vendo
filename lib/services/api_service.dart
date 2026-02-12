@@ -1,7 +1,4 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:sqflite/sqflite.dart';
 import '../models/api_response.dart';
 import '../models/bottle_log.dart';
 import '../models/internet_credit.dart';
@@ -9,92 +6,21 @@ import '../models/machine.dart';
 import '../models/user.dart';
 import '../models/wifi_session.dart';
 import '../utils/api_exception.dart';
-import '../utils/constants.dart';
+import 'database_helper.dart';
 import 'storage_service.dart';
 
-/// API service for all HTTP communications with Laravel backend
+/// Local API service — all operations run against the on-device SQLite database.
+/// Method signatures are identical to the original HTTP-based service so that
+/// providers and screens continue to work without modification.
 class ApiService {
   final StorageService _storageService;
-  final String baseUrl;
+  final DatabaseHelper _db = DatabaseHelper.instance;
 
+  // Constructor kept compatible with existing callers.
   ApiService({required StorageService storageService, String? baseUrl})
-    : _storageService = storageService,
-      baseUrl = baseUrl ?? AppConstants.baseUrl;
+    : _storageService = storageService;
 
-  /// Get authorization headers
-  Future<Map<String, String>> _getHeaders({bool includeAuth = true}) async {
-    final headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    if (includeAuth) {
-      final token = await _storageService.getToken();
-      if (token != null) {
-        headers['Authorization'] = 'Bearer $token';
-      }
-    }
-
-    return headers;
-  }
-
-  /// Handle HTTP response
-  Map<String, dynamic> _handleResponse(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    }
-
-    // Handle error responses
-    Map<String, dynamic>? errorBody;
-    try {
-      errorBody = jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (e) {
-      // Response body is not JSON
-    }
-
-    switch (response.statusCode) {
-      case 401:
-        throw ApiException.unauthorized();
-      case 422:
-        final message = errorBody?['message'] as String? ?? 'Validation failed';
-        throw ApiException.validationError(message);
-      case 500:
-        throw ApiException.serverError();
-      default:
-        final message = errorBody?['message'] as String? ?? 'An error occurred';
-        throw ApiException(
-          message: message,
-          statusCode: response.statusCode,
-          data: errorBody,
-        );
-    }
-  }
-
-  /// Execute HTTP request with error handling
-  Future<Map<String, dynamic>> _executeRequest(
-    Future<http.Response> Function() requestFunction,
-  ) async {
-    try {
-      final response = await requestFunction().timeout(
-        AppConstants.connectionTimeout,
-        onTimeout: () => throw ApiException.timeout(),
-      );
-      return _handleResponse(response);
-    } on SocketException {
-      throw ApiException.networkError();
-    } on TimeoutException {
-      throw ApiException.timeout();
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException(
-        message: 'Unexpected error: ${e.toString()}',
-        statusCode: null,
-      );
-    }
-  }
-
-  // ==================== Authentication Endpoints ====================
+  // ==================== Authentication ====================
 
   /// Register a new user
   Future<ApiResponse<User>> register({
@@ -103,37 +29,62 @@ class ApiService {
     required String password,
     required String passwordConfirmation,
   }) async {
-    final body = jsonEncode({
-      'name': name,
-      'email': email,
-      'password': password,
-      'password_confirmation': passwordConfirmation,
-    });
+    try {
+      if (password != passwordConfirmation) {
+        throw ApiException.validationError('Passwords do not match');
+      }
+      if (password.length < 6) {
+        throw ApiException.validationError(
+          'Password must be at least 6 characters',
+        );
+      }
 
-    final responseData = await _executeRequest(
-      () async => http.post(
-        Uri.parse('$baseUrl${AppConstants.registerEndpoint}'),
-        headers: await _getHeaders(includeAuth: false),
-        body: body,
-      ),
-    );
+      final db = await _db.database;
 
-    // Extract data from Laravel response format
-    final data = responseData['data'] as Map<String, dynamic>;
+      // Check for duplicate email
+      final existing = await db.query(
+        'users',
+        where: 'email = ?',
+        whereArgs: [email.toLowerCase()],
+      );
+      if (existing.isNotEmpty) {
+        throw ApiException.validationError(
+          'An account with this email already exists',
+        );
+      }
 
-    // Save token and user
-    if (data['token'] != null) {
-      await _storageService.saveToken(data['token'] as String);
+      final now = DateTime.now().toIso8601String();
+      final id = await db.insert('users', {
+        'name': name,
+        'email': email.toLowerCase(),
+        'password_hash': DatabaseHelper.hashPassword(password),
+        'credits': 0,
+        'role': 'user',
+        'last_login_at': now,
+        'created_at': now,
+        'updated_at': now,
+      });
+
+      final userRow = (await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [id],
+      )).first;
+
+      final user = User.fromJson(userRow);
+      await _storageService.saveToken('local_auth_$id');
+      await _storageService.saveUser(user);
+
+      return ApiResponse<User>(
+        success: true,
+        message: 'Registration successful',
+        data: user,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(message: 'Registration failed: $e', statusCode: null);
     }
-
-    final user = User.fromJson(data['user'] as Map<String, dynamic>);
-    await _storageService.saveUser(user);
-
-    return ApiResponse<User>(
-      success: true,
-      message: responseData['message'] as String?,
-      data: user,
-    );
   }
 
   /// Login user
@@ -141,82 +92,223 @@ class ApiService {
     required String email,
     required String password,
   }) async {
-    final body = jsonEncode({'email': email, 'password': password});
+    try {
+      final db = await _db.database;
+      final rows = await db.query(
+        'users',
+        where: 'email = ? AND password_hash = ?',
+        whereArgs: [email.toLowerCase(), DatabaseHelper.hashPassword(password)],
+      );
 
-    final responseData = await _executeRequest(
-      () async => http.post(
-        Uri.parse('$baseUrl${AppConstants.loginEndpoint}'),
-        headers: await _getHeaders(includeAuth: false),
-        body: body,
-      ),
+      if (rows.isEmpty) {
+        throw ApiException.validationError('Invalid email or password');
+      }
+
+      final userRow = rows.first;
+
+      // Check suspension
+      if (userRow['suspended_at'] != null) {
+        final reason = userRow['suspension_reason'] as String? ?? 'No reason';
+        throw ApiException(
+          message: 'Account suspended: $reason',
+          statusCode: 403,
+        );
+      }
+
+      // Update last login
+      final now = DateTime.now().toIso8601String();
+      await db.update(
+        'users',
+        {'last_login_at': now, 'updated_at': now},
+        where: 'id = ?',
+        whereArgs: [userRow['id']],
+      );
+
+      final updatedRow = (await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [userRow['id']],
+      )).first;
+
+      final user = User.fromJson(updatedRow);
+      await _storageService.saveToken('local_auth_${user.id}');
+      await _storageService.saveUser(user);
+
+      return ApiResponse<User>(
+        success: true,
+        message: 'Login successful',
+        data: user,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(message: 'Login failed: $e', statusCode: null);
+    }
+  }
+
+  /// Forgot password — resets to the default password 'password'.
+  Future<void> forgotPassword({required String email}) async {
+    final db = await _db.database;
+    final rows = await db.query(
+      'users',
+      where: 'email = ?',
+      whereArgs: [email.toLowerCase()],
     );
+    if (rows.isEmpty) {
+      throw ApiException.validationError('No account found with this email');
+    }
+    await db.update(
+      'users',
+      {
+        'password_hash': DatabaseHelper.hashPassword('password'),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'email = ?',
+      whereArgs: [email.toLowerCase()],
+    );
+  }
 
-    // Extract data from Laravel response format
-    final data = responseData['data'] as Map<String, dynamic>;
+  /// Convert user credits to a WiFi voucher
+  Future<Map<String, dynamic>> convertCreditsToVoucher({
+    required int minutes,
+  }) async {
+    final db = await _db.database;
+    final currentUser = await _storageService.getUser();
+    if (currentUser == null) throw ApiException.unauthorized();
 
-    // Save token and user
-    if (data['token'] != null) {
-      await _storageService.saveToken(data['token'] as String);
+    // Refresh credits from DB
+    final userRow = (await db.query(
+      'users',
+      where: 'id = ?',
+      whereArgs: [currentUser.id],
+    )).first;
+    final availableCredits = userRow['credits'] as int? ?? 0;
+
+    if (availableCredits < minutes) {
+      throw ApiException.validationError(
+        'Not enough credits. Available: $availableCredits',
+      );
     }
 
-    final user = User.fromJson(data['user'] as Map<String, dynamic>);
-    await _storageService.saveUser(user);
+    final now = DateTime.now().toIso8601String();
+    final code = DatabaseHelper.generateVoucherCode();
 
-    return ApiResponse<User>(
-      success: true,
-      message: responseData['message'] as String?,
-      data: user,
+    // Deduct credits
+    await db.rawUpdate(
+      'UPDATE users SET credits = credits - ?, updated_at = ? WHERE id = ?',
+      [minutes, now, currentUser.id],
     );
+
+    // Create voucher
+    final voucherId = await db.insert('vouchers', {
+      'code': code,
+      'minutes': minutes,
+      'status': 'active',
+      'type': 'single_use',
+      'created_at': now,
+    });
+
+    // Refresh user in storage
+    final refreshedUser = (await db.query(
+      'users',
+      where: 'id = ?',
+      whereArgs: [currentUser.id],
+    )).first;
+    await _storageService.saveUser(User.fromJson(refreshedUser));
+
+    return {
+      'voucher': {
+        'id': voucherId,
+        'code': code,
+        'minutes': minutes,
+        'status': 'active',
+        'created_at': now,
+      },
+    };
   }
 
   /// Logout user
   Future<ApiResponse<void>> logout() async {
-    final responseData = await _executeRequest(
-      () async => http.post(
-        Uri.parse('$baseUrl${AppConstants.logoutEndpoint}'),
-        headers: await _getHeaders(),
-      ),
-    );
-
-    // Clear local storage
     await _storageService.clearAll();
-
-    return ApiResponse<void>(
-      success: true,
-      message: responseData['message'] as String?,
-    );
+    return ApiResponse<void>(success: true, message: 'Logged out');
   }
 
-  // ==================== Bottle Endpoints ====================
+  // ==================== Bottle Operations ====================
 
-  /// Report a bottle
+  /// Report a bottle (scan)
   Future<ApiResponse<BottleLog>> reportBottle({
     required int machineId,
     String? imageBase64,
   }) async {
-    final body = jsonEncode({
-      'machine_id': machineId,
-      if (imageBase64 != null) 'image': imageBase64,
-    });
+    try {
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
 
-    final responseData = await _executeRequest(
-      () async => http.post(
-        Uri.parse('$baseUrl${AppConstants.reportBottleEndpoint}'),
-        headers: await _getHeaders(),
-        body: body,
-      ),
-    );
+      // Verify machine exists
+      final machineRows = await db.query(
+        'machines',
+        where: 'id = ?',
+        whereArgs: [machineId],
+      );
+      if (machineRows.isEmpty) {
+        throw ApiException.validationError('Machine not found');
+      }
+      final machineName = machineRows.first['name'] as String?;
 
-    final data = responseData['data'] as Map<String, dynamic>;
-    final bottleLog = BottleLog.fromJson(
-      data['bottle_log'] as Map<String, dynamic>,
-    );
+      final now = DateTime.now();
+      final nowStr = now.toIso8601String();
+      const creditsPerBottle = 1;
 
-    return ApiResponse<BottleLog>(
-      success: true,
-      message: responseData['message'] as String?,
-      data: bottleLog,
-    );
+      // Insert bottle log
+      final logId = await db.insert('bottle_logs', {
+        'user_id': currentUser.id,
+        'machine_id': machineId,
+        'machine_name': machineName,
+        'credits_awarded': creditsPerBottle,
+        'image_url': imageBase64,
+        'status': 'verified',
+        'timestamp': nowStr,
+        'created_at': nowStr,
+      });
+
+      // Update user credits
+      await db.rawUpdate(
+        'UPDATE users SET credits = credits + ?, updated_at = ? WHERE id = ?',
+        [creditsPerBottle, nowStr, currentUser.id],
+      );
+
+      // Update machine bottle count
+      await db.rawUpdate(
+        'UPDATE machines SET total_bottles_processed = total_bottles_processed + 1, updated_at = ? WHERE id = ?',
+        [nowStr, machineId],
+      );
+
+      final bottleLog = BottleLog(
+        id: logId,
+        userId: currentUser.id,
+        machineId: machineId,
+        machineName: machineName,
+        creditsAwarded: creditsPerBottle,
+        imageUrl: imageBase64,
+        status: 'verified',
+        timestamp: now,
+        createdAt: now,
+      );
+
+      return ApiResponse<BottleLog>(
+        success: true,
+        message: 'Bottle reported successfully',
+        data: bottleLog,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to report bottle: $e',
+        statusCode: null,
+      );
+    }
   }
 
   /// Get bottle history
@@ -224,165 +316,412 @@ class ApiService {
     int page = 1,
     int perPage = 20,
   }) async {
-    final uri = Uri.parse(
-      '$baseUrl${AppConstants.bottleHistoryEndpoint}?page=$page&per_page=$perPage',
-    );
+    try {
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
 
-    final responseData = await _executeRequest(
-      () async => http.get(uri, headers: await _getHeaders()),
-    );
+      final offset = (page - 1) * perPage;
 
-    final data = responseData['data'] as Map<String, dynamic>;
-    final bottleLogs = (data['bottles'] as List)
-        .map((json) => BottleLog.fromJson(json as Map<String, dynamic>))
-        .toList();
+      final rows = await db.query(
+        'bottle_logs',
+        where: 'user_id = ?',
+        whereArgs: [currentUser.id],
+        orderBy: 'created_at DESC',
+        limit: perPage,
+        offset: offset,
+      );
 
-    return ApiResponse<List<BottleLog>>(
-      success: true,
-      message: responseData['message'] as String?,
-      data: bottleLogs,
-      meta: data,
-    );
+      final totalCount =
+          Sqflite.firstIntValue(
+            await db.rawQuery(
+              'SELECT COUNT(*) FROM bottle_logs WHERE user_id = ?',
+              [currentUser.id],
+            ),
+          ) ??
+          0;
+
+      final logs = rows.map((r) => BottleLog.fromJson(r)).toList();
+      final lastPage = (totalCount / perPage).ceil();
+
+      return ApiResponse<List<BottleLog>>(
+        success: true,
+        data: logs,
+        meta: {
+          'current_page': page,
+          'last_page': lastPage < 1 ? 1 : lastPage,
+          'total': totalCount,
+        },
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to fetch bottle history: $e',
+        statusCode: null,
+      );
+    }
   }
 
   /// Get bottle statistics
   Future<ApiResponse<BottleStatistics>> getBottleStatistics() async {
-    final responseData = await _executeRequest(
-      () async => http.get(
-        Uri.parse('$baseUrl${AppConstants.bottleStatisticsEndpoint}'),
-        headers: await _getHeaders(),
-      ),
-    );
+    try {
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
 
-    final data = responseData['data'] as Map<String, dynamic>;
-    final statistics = BottleStatistics.fromJson(
-      data['statistics'] as Map<String, dynamic>,
-    );
+      final uid = currentUser.id;
+      final weekAgo = DateTime.now()
+          .subtract(const Duration(days: 7))
+          .toIso8601String();
+      final monthAgo = DateTime.now()
+          .subtract(const Duration(days: 30))
+          .toIso8601String();
 
-    return ApiResponse<BottleStatistics>(success: true, data: statistics);
+      int cnt(List<Map<String, dynamic>> r) => Sqflite.firstIntValue(r) ?? 0;
+
+      final total = cnt(
+        await db.rawQuery(
+          'SELECT COUNT(*) FROM bottle_logs WHERE user_id = ?',
+          [uid],
+        ),
+      );
+      final verified = cnt(
+        await db.rawQuery(
+          "SELECT COUNT(*) FROM bottle_logs WHERE user_id = ? AND status = 'verified'",
+          [uid],
+        ),
+      );
+      final pending = cnt(
+        await db.rawQuery(
+          "SELECT COUNT(*) FROM bottle_logs WHERE user_id = ? AND status = 'pending'",
+          [uid],
+        ),
+      );
+      final rejected = cnt(
+        await db.rawQuery(
+          "SELECT COUNT(*) FROM bottle_logs WHERE user_id = ? AND status = 'rejected'",
+          [uid],
+        ),
+      );
+      final creditsEarned =
+          Sqflite.firstIntValue(
+            await db.rawQuery(
+              'SELECT COALESCE(SUM(credits_awarded), 0) FROM bottle_logs WHERE user_id = ?',
+              [uid],
+            ),
+          ) ??
+          0;
+      final thisWeek = cnt(
+        await db.rawQuery(
+          'SELECT COUNT(*) FROM bottle_logs WHERE user_id = ? AND created_at >= ?',
+          [uid, weekAgo],
+        ),
+      );
+      final thisMonth = cnt(
+        await db.rawQuery(
+          'SELECT COUNT(*) FROM bottle_logs WHERE user_id = ? AND created_at >= ?',
+          [uid, monthAgo],
+        ),
+      );
+
+      final stats = BottleStatistics(
+        totalBottles: total,
+        verifiedBottles: verified,
+        pendingBottles: pending,
+        rejectedBottles: rejected,
+        totalCreditsEarned: creditsEarned,
+        thisWeekBottles: thisWeek,
+        thisMonthBottles: thisMonth,
+      );
+
+      return ApiResponse<BottleStatistics>(success: true, data: stats);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to fetch statistics: $e',
+        statusCode: null,
+      );
+    }
   }
 
-  // ==================== Internet Endpoints ====================
+  // ==================== Internet / Credits ====================
 
-  /// Request internet access
+  /// Request internet access (deducts credits, for record keeping).
   Future<ApiResponse<WifiSession>> requestInternet({
     required int machineId,
     required int minutes,
   }) async {
-    final body = jsonEncode({'machine_id': machineId, 'minutes': minutes});
+    try {
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
 
-    final responseData = await _executeRequest(
-      () async => http.post(
-        Uri.parse('$baseUrl${AppConstants.requestInternetEndpoint}'),
-        headers: await _getHeaders(),
-        body: body,
-      ),
-    );
+      final userRow = (await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [currentUser.id],
+      )).first;
+      final available = userRow['credits'] as int? ?? 0;
+      if (available < minutes) {
+        throw ApiException.validationError('Not enough credits');
+      }
 
-    final data = responseData['data'] as Map<String, dynamic>;
-    final session = WifiSession.fromJson(
-      data['session'] as Map<String, dynamic>,
-    );
+      final now = DateTime.now();
+      await db.rawUpdate(
+        'UPDATE users SET credits = credits - ?, updated_at = ? WHERE id = ?',
+        [minutes, now.toIso8601String(), currentUser.id],
+      );
 
-    return ApiResponse<WifiSession>(
-      success: true,
-      message: responseData['message'] as String?,
-      data: session,
-    );
+      // Refresh user in storage
+      final refreshedRow = (await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [currentUser.id],
+      )).first;
+      await _storageService.saveUser(User.fromJson(refreshedRow));
+
+      final session = WifiSession(
+        id: 0,
+        userId: currentUser.id,
+        machineId: machineId,
+        startTime: now,
+        endTime: now.add(Duration(minutes: minutes)),
+        durationMinutes: minutes,
+        status: 'active',
+      );
+
+      return ApiResponse<WifiSession>(
+        success: true,
+        message: 'Internet session started',
+        data: session,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to start session: $e',
+        statusCode: null,
+      );
+    }
   }
 
   /// View user credits
   Future<ApiResponse<InternetCredit>> viewCredits() async {
-    final responseData = await _executeRequest(
-      () async => http.get(
-        Uri.parse('$baseUrl${AppConstants.viewCreditsEndpoint}'),
-        headers: await _getHeaders(),
-      ),
-    );
+    try {
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
 
-    final data = responseData['data'] as Map<String, dynamic>;
-    final credits = InternetCredit.fromJson(
-      data['credits'] as Map<String, dynamic>,
-    );
+      final userRow = (await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [currentUser.id],
+      )).first;
 
-    return ApiResponse<InternetCredit>(success: true, data: credits);
+      final totalCredits = userRow['credits'] as int? ?? 0;
+      final totalEarned =
+          Sqflite.firstIntValue(
+            await db.rawQuery(
+              'SELECT COALESCE(SUM(credits_awarded), 0) FROM bottle_logs WHERE user_id = ?',
+              [currentUser.id],
+            ),
+          ) ??
+          0;
+      final used = totalEarned > totalCredits ? totalEarned - totalCredits : 0;
+
+      final credits = InternetCredit(
+        totalMinutes: totalEarned,
+        usedMinutes: used,
+        remainingMinutes: totalCredits,
+        isActive: totalCredits > 0,
+      );
+
+      return ApiResponse<InternetCredit>(success: true, data: credits);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to fetch credits: $e',
+        statusCode: null,
+      );
+    }
   }
 
-  /// Get active session
+  /// Get active session — standalone mode has no persistent sessions.
   Future<ApiResponse<WifiSession?>> getActiveSession() async {
-    final responseData = await _executeRequest(
-      () async => http.get(
-        Uri.parse('$baseUrl${AppConstants.activeSessionEndpoint}'),
-        headers: await _getHeaders(),
-      ),
-    );
-
-    final data = responseData['data'] as Map<String, dynamic>;
-    final sessionData = data['session'];
-    final session = sessionData != null
-        ? WifiSession.fromJson(sessionData as Map<String, dynamic>)
-        : null;
-
-    return ApiResponse<WifiSession?>(success: true, data: session);
+    return ApiResponse<WifiSession?>(success: true, data: null);
   }
 
-  // ==================== Machine Endpoints ====================
+  // ==================== Machines ====================
 
   /// Get machine status
   Future<ApiResponse<List<Machine>>> getMachineStatus() async {
-    final responseData = await _executeRequest(
-      () async => http.get(
-        Uri.parse('$baseUrl${AppConstants.machineStatusEndpoint}'),
-        headers: await _getHeaders(includeAuth: false),
-      ),
-    );
+    try {
+      final db = await _db.database;
+      final rows = await db.query('machines', orderBy: 'created_at DESC');
+      final machines = rows
+          .map((r) => Machine.fromJson(DatabaseHelper.machineRowToJson(r)))
+          .toList();
 
-    final data = responseData['data'] as Map<String, dynamic>;
-    final machines = (data['machines'] as List)
-        .map((json) => Machine.fromJson(json as Map<String, dynamic>))
-        .toList();
-
-    return ApiResponse<List<Machine>>(success: true, data: machines);
+      return ApiResponse<List<Machine>>(success: true, data: machines);
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to fetch machines: $e',
+        statusCode: null,
+      );
+    }
   }
 
-  /// Send machine heartbeat
+  /// Send machine heartbeat (mark as online).
   Future<ApiResponse<Machine>> sendMachineHeartbeat({
     required int machineId,
   }) async {
-    final body = jsonEncode({
-      'machine_id': machineId,
-      'timestamp': DateTime.now().toIso8601String(),
-    });
-
-    final responseData = await _executeRequest(
-      () async => http.post(
-        Uri.parse('$baseUrl${AppConstants.machineHeartbeatEndpoint}'),
-        headers: await _getHeaders(),
-        body: body,
-      ),
-    );
-
-    final data = responseData['data'] as Map<String, dynamic>;
-    final machine = Machine.fromJson(data['machine'] as Map<String, dynamic>);
-
-    return ApiResponse<Machine>(success: true, data: machine);
+    try {
+      final db = await _db.database;
+      final now = DateTime.now().toIso8601String();
+      await db.update(
+        'machines',
+        {'is_online': 1, 'last_online': now, 'updated_at': now},
+        where: 'id = ?',
+        whereArgs: [machineId],
+      );
+      final row = (await db.query(
+        'machines',
+        where: 'id = ?',
+        whereArgs: [machineId],
+      )).first;
+      final machine = Machine.fromJson(DatabaseHelper.machineRowToJson(row));
+      return ApiResponse<Machine>(success: true, data: machine);
+    } catch (e) {
+      throw ApiException(message: 'Heartbeat failed: $e', statusCode: null);
+    }
   }
 
-  // ==================== User Endpoints ====================
+  // ==================== User Profile ====================
 
   /// Get user profile
   Future<ApiResponse<User>> getUserProfile() async {
-    final responseData = await _executeRequest(
-      () async => http.get(
-        Uri.parse('$baseUrl${AppConstants.userProfileEndpoint}'),
-        headers: await _getHeaders(),
-      ),
-    );
+    try {
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
 
-    final data = responseData['data'] as Map<String, dynamic>;
-    final user = User.fromJson(data['user'] as Map<String, dynamic>);
-    await _storageService.saveUser(user);
+      final rows = await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [currentUser.id],
+      );
+      if (rows.isEmpty) throw ApiException.unauthorized();
 
-    return ApiResponse<User>(success: true, data: user);
+      final user = User.fromJson(rows.first);
+      await _storageService.saveUser(user);
+
+      return ApiResponse<User>(success: true, data: user);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to fetch profile: $e',
+        statusCode: null,
+      );
+    }
+  }
+
+  /// Update user profile
+  Future<ApiResponse<User>> updateProfile({
+    String? name,
+    String? email,
+    String? phoneNumber,
+  }) async {
+    try {
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
+
+      final updates = <String, dynamic>{
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      if (name != null) updates['name'] = name;
+      if (email != null) updates['email'] = email.toLowerCase();
+      if (phoneNumber != null) updates['phone_number'] = phoneNumber;
+
+      await db.update(
+        'users',
+        updates,
+        where: 'id = ?',
+        whereArgs: [currentUser.id],
+      );
+
+      final row = (await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [currentUser.id],
+      )).first;
+      final user = User.fromJson(row);
+      await _storageService.saveUser(user);
+
+      return ApiResponse<User>(success: true, data: user);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to update profile: $e',
+        statusCode: null,
+      );
+    }
+  }
+
+  /// Change user password
+  Future<ApiResponse<void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    try {
+      if (newPassword != newPasswordConfirmation) {
+        throw ApiException.validationError('Passwords do not match');
+      }
+
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
+
+      // Verify current password
+      final rows = await db.query(
+        'users',
+        where: 'id = ? AND password_hash = ?',
+        whereArgs: [
+          currentUser.id,
+          DatabaseHelper.hashPassword(currentPassword),
+        ],
+      );
+      if (rows.isEmpty) {
+        throw ApiException.validationError('Current password is incorrect');
+      }
+
+      await db.update(
+        'users',
+        {
+          'password_hash': DatabaseHelper.hashPassword(newPassword),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [currentUser.id],
+      );
+
+      return ApiResponse<void>(
+        success: true,
+        message: 'Password changed successfully',
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to change password: $e',
+        statusCode: null,
+      );
+    }
   }
 }

@@ -10,11 +10,11 @@ class GuestWifiSessionScreen extends StatefulWidget {
   final DateTime expiresAt;
 
   const GuestWifiSessionScreen({
-    Key? key,
+    super.key,
     required this.sessionToken,
     required this.minutes,
     required this.expiresAt,
-  }) : super(key: key);
+  });
 
   @override
   State<GuestWifiSessionScreen> createState() => _GuestWifiSessionScreenState();
@@ -126,7 +126,7 @@ class _GuestWifiSessionScreenState extends State<GuestWifiSessionScreen> {
                       width: 50,
                       height: 50,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: ClipRRect(
@@ -160,7 +160,7 @@ class _GuestWifiSessionScreenState extends State<GuestWifiSessionScreen> {
                         width: 120,
                         height: 120,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -192,7 +192,7 @@ class _GuestWifiSessionScreenState extends State<GuestWifiSessionScreen> {
                             vertical: 16,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -263,7 +263,7 @@ class _GuestWifiSessionScreenState extends State<GuestWifiSessionScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade100.withOpacity(0.9),
+                          color: Colors.orange.shade100.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: Colors.orange.shade400,
@@ -358,7 +358,7 @@ class _GuestWifiSessionScreenState extends State<GuestWifiSessionScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(

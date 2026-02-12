@@ -1,11 +1,11 @@
 {
-    "name": "bottle_wifi",
-    "short_name": "bottle_wifi",
+    "name": "Bottle WiFi Vendo",
+    "short_name": "Bottle WiFi",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1976D2",
+    "theme_color": "#1976D2",
+    "description": "Recycle bottles and earn free WiFi credits.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

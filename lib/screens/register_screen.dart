@@ -53,15 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         MaterialPageRoute(builder: (context) => const DashboardScreen()),
       );
     } else {
-      String errorMsg = authProvider.errorMessage ?? 'Registration failed';
-
-      // Show helpful message if backend is not available
-      if (errorMsg.contains('Failed to fetch') ||
-          errorMsg.contains('SocketException')) {
-        errorMsg =
-            'Cannot connect to server. Make sure your Laravel backend is running at http://localhost:8000';
-      }
-
+      final errorMsg = authProvider.errorMessage ?? 'Registration failed';
       Helpers.showSnackbar(context, errorMsg, isError: true);
     }
   }

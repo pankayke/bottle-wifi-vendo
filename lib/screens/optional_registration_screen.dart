@@ -7,8 +7,7 @@ import '../providers/auth_provider.dart';
 class OptionalRegistrationScreen extends StatefulWidget {
   final Map<String, dynamic> guestStats;
 
-  const OptionalRegistrationScreen({Key? key, required this.guestStats})
-    : super(key: key);
+  const OptionalRegistrationScreen({super.key, required this.guestStats});
 
   @override
   State<OptionalRegistrationScreen> createState() =>
@@ -73,6 +72,8 @@ class _OptionalRegistrationScreenState
         // Save token and user data
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         await authProvider.loginWithToken(result['token'], result['user']);
+
+        if (!mounted) return;
 
         // Show success dialog
         showDialog(
@@ -309,7 +310,7 @@ class _OptionalRegistrationScreenState
                       Container(
                         padding: EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.95),
+                          color: Colors.white.withValues(alpha: 0.95),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Column(

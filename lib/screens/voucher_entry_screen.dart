@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import '../services/database_helper.dart';
 import '../services/device_fingerprint_service.dart';
 import '../utils/constants.dart';
 
@@ -47,32 +46,64 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
     });
 
     try {
-      final response = await http.get(
-        Uri.parse(
-          '${AppConstants.baseUrl}/voucher/validate/${Uri.encodeComponent(code)}',
-        ),
-        headers: {'Accept': 'application/json'},
+      final db = await DatabaseHelper.instance.database;
+      final rows = await db.query(
+        'vouchers',
+        where: 'code = ?',
+        whereArgs: [code],
       );
-
-      final data = jsonDecode(response.body);
 
       if (!mounted) return;
 
-      if (response.statusCode == 200 && data['found'] == true) {
-        setState(() {
-          _validationResult = data;
-          _errorMessage = null;
-        });
+      if (rows.isNotEmpty) {
+        final voucher = rows.first;
+        final status = voucher['status'] as String? ?? 'active';
+
+        if (status == 'active') {
+          // Check expiry
+          final expiresAt = voucher['expires_at'] as String?;
+          if (expiresAt != null &&
+              DateTime.now().isAfter(DateTime.parse(expiresAt))) {
+            setState(() {
+              _errorMessage = 'This voucher has expired';
+              _validationResult = null;
+            });
+          } else {
+            setState(() {
+              _validationResult = {
+                'found': true,
+                'minutes': voucher['minutes'],
+                'type': voucher['type'],
+              };
+              _errorMessage = null;
+            });
+          }
+        } else if (status == 'redeemed') {
+          setState(() {
+            _errorMessage = 'This voucher has already been used';
+            _validationResult = null;
+          });
+        } else if (status == 'revoked') {
+          setState(() {
+            _errorMessage = 'This voucher has been revoked';
+            _validationResult = null;
+          });
+        } else {
+          setState(() {
+            _errorMessage = 'This voucher is no longer valid';
+            _validationResult = null;
+          });
+        }
       } else {
         setState(() {
-          _errorMessage = data['message'] ?? 'Invalid voucher code';
+          _errorMessage = 'Invalid voucher code';
           _validationResult = null;
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Network error. Please check your connection.';
+        _errorMessage = 'Error validating voucher: $e';
         _validationResult = null;
       });
     } finally {
@@ -80,6 +111,41 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
         setState(() => _isValidating = false);
       }
     }
+  }
+
+  /// Determine if the error is about a duplicate/used voucher
+  bool get _isDuplicateError =>
+      _errorMessage != null &&
+      (_errorMessage!.toLowerCase().contains('already') ||
+          _errorMessage!.toLowerCase().contains('used'));
+
+  /// Determine if the error is about an expired voucher
+  bool get _isExpiredError =>
+      _errorMessage != null && _errorMessage!.toLowerCase().contains('expired');
+
+  /// Determine if the error is about a revoked voucher
+  bool get _isRevokedError =>
+      _errorMessage != null && _errorMessage!.toLowerCase().contains('revoked');
+
+  /// Get the appropriate icon for the current error
+  IconData _getErrorIcon() {
+    if (_isDuplicateError) return Icons.block;
+    if (_isExpiredError) return Icons.timer_off;
+    if (_isRevokedError) return Icons.cancel;
+    return Icons.error_outline;
+  }
+
+  /// Get the appropriate color for the current error
+  Color _getErrorColor() {
+    return AppColors.errorColor;
+  }
+
+  /// Get a short title for the current error
+  String _getErrorTitle() {
+    if (_isDuplicateError) return 'Voucher Already Used';
+    if (_isExpiredError) return 'Voucher Expired';
+    if (_isRevokedError) return 'Voucher Revoked';
+    return 'Invalid Voucher';
   }
 
   Future<void> _redeemVoucher() async {
@@ -93,38 +159,66 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
     });
 
     try {
-      final fingerprintService = DeviceFingerprintService();
-      final deviceFingerprint = await fingerprintService.generateFingerprint();
-
-      final response = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/voucher/redeem'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'code': code,
-          'device_fingerprint': deviceFingerprint,
-          'device_info': {'device_type': 'web'},
-        }),
+      final db = await DatabaseHelper.instance.database;
+      final rows = await db.query(
+        'vouchers',
+        where: 'code = ?',
+        whereArgs: [code],
       );
 
-      final data = jsonDecode(response.body);
+      if (!mounted) return;
+
+      if (rows.isEmpty) {
+        setState(() => _errorMessage = 'Invalid voucher code');
+        return;
+      }
+
+      final voucher = rows.first;
+      final status = voucher['status'] as String? ?? 'active';
+      final minutes = voucher['minutes'] as int? ?? 0;
+
+      if (status != 'active') {
+        setState(() => _errorMessage = 'This voucher has already been $status');
+        return;
+      }
+
+      // Check expiry
+      final expiresAt = voucher['expires_at'] as String?;
+      if (expiresAt != null &&
+          DateTime.now().isAfter(DateTime.parse(expiresAt))) {
+        setState(() => _errorMessage = 'This voucher has expired');
+        return;
+      }
+
+      // Mark voucher as redeemed
+      final fingerprintService = DeviceFingerprintService();
+      final deviceFingerprint = await fingerprintService.generateFingerprint();
+      final now = DateTime.now().toIso8601String();
+
+      await db.update(
+        'vouchers',
+        {
+          'status': 'redeemed',
+          'redeemed_at': now,
+          'user_name': deviceFingerprint.substring(0, 8),
+        },
+        where: 'id = ?',
+        whereArgs: [voucher['id']],
+      );
 
       if (!mounted) return;
 
-      if (response.statusCode == 200 && data['success'] == true) {
-        _showSuccessDialog(data);
-      } else {
-        setState(() {
-          _errorMessage = data['error'] ?? 'Failed to redeem voucher';
-        });
-      }
+      _showSuccessDialog({
+        'session': {
+          'minutes_granted': minutes,
+          'expires_at': DateTime.now()
+              .add(Duration(minutes: minutes))
+              .toIso8601String(),
+        },
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Network error. Please check your connection.';
-      });
+      setState(() => _errorMessage = 'Error redeeming voucher: $e');
     } finally {
       if (mounted) {
         setState(() => _isRedeeming = false);
@@ -151,7 +245,7 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.successColor.withOpacity(0.1),
+                color: AppColors.successColor.withValues(alpha: 0.1),
               ),
               child: const Icon(
                 Icons.check_circle,
@@ -195,7 +289,7 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
             child: ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop(); // close dialog
-                Navigator.of(context).pop(); // go back to access selection
+                Navigator.of(context).pop(); // go back
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.successColor,
@@ -251,7 +345,7 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primaryColor.withOpacity(0.2),
+                            color: AppColors.primaryColor.withValues(alpha: 0.2),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),
@@ -386,26 +480,38 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
                   // Error message
                   if (_errorMessage != null)
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.errorColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        color: _getErrorColor().withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _getErrorColor().withValues(alpha: 0.3),
+                        ),
                       ),
-                      child: Row(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.error_outline,
-                            color: AppColors.errorColor,
-                            size: 20,
+                          Icon(
+                            _getErrorIcon(),
+                            color: _getErrorColor(),
+                            size: 36,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: const TextStyle(
-                                color: AppColors.errorColor,
-                                fontSize: 14,
-                              ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _getErrorTitle(),
+                            style: TextStyle(
+                              color: _getErrorColor(),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: _getErrorColor(),
+                              fontSize: 13,
                             ),
                           ),
                         ],
@@ -417,21 +523,21 @@ class _VoucherEntryScreenState extends State<VoucherEntryScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.successColor.withOpacity(0.1),
+                        color: AppColors.successColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          const Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.check_circle,
                                 color: AppColors.successColor,
                                 size: 20,
                               ),
-                              const SizedBox(width: 8),
-                              const Text(
+                              SizedBox(width: 8),
+                              Text(
                                 'Valid Voucher',
                                 style: TextStyle(
                                   color: AppColors.successColor,

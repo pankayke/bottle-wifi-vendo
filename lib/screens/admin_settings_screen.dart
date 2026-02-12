@@ -4,10 +4,243 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/storage_service.dart';
 import '../utils/constants.dart';
+import '../utils/helpers.dart';
 
 /// Admin settings screen
-class AdminSettingsScreen extends StatelessWidget {
+class AdminSettingsScreen extends StatefulWidget {
   const AdminSettingsScreen({super.key});
+
+  @override
+  State<AdminSettingsScreen> createState() => _AdminSettingsScreenState();
+}
+
+class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
+  void _showChangeEmailDialog() {
+    final emailController = TextEditingController(
+      text: context.read<AuthProvider>().user?.email ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool isSaving = false;
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.email, color: AppColors.primaryColor),
+                SizedBox(width: 8),
+                Text('Change Email'),
+              ],
+            ),
+            content: TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Email Address',
+                prefixIcon: const Icon(Icons.email_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        final newEmail = emailController.text.trim();
+                        if (newEmail.isEmpty || !newEmail.contains('@')) {
+                          Helpers.showSnackbar(
+                            context,
+                            'Please enter a valid email',
+                            isError: true,
+                          );
+                          return;
+                        }
+
+                        setDialogState(() => isSaving = true);
+                        final authProvider = context.read<AuthProvider>();
+                        final success = await authProvider.updateProfile(
+                          email: newEmail,
+                        );
+
+                        if (!mounted) return;
+                        if (ctx.mounted) Navigator.pop(ctx);
+
+                        Helpers.showSnackbar(
+                          context,
+                          success
+                              ? 'Email updated successfully'
+                              : authProvider.errorMessage ??
+                                    'Failed to update email',
+                          isError: !success,
+                        );
+                      },
+                child: Text(isSaving ? 'Saving...' : 'Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final currentPwController = TextEditingController();
+    final newPwController = TextEditingController();
+    final confirmPwController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool obscureCurrent = true;
+        bool obscureNew = true;
+        bool obscureConfirm = true;
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.lock, color: AppColors.primaryColor),
+                SizedBox(width: 8),
+                Text('Change Password'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: currentPwController,
+                    obscureText: obscureCurrent,
+                    decoration: InputDecoration(
+                      labelText: 'Current Password',
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureCurrent
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () => setDialogState(
+                          () => obscureCurrent = !obscureCurrent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: newPwController,
+                    obscureText: obscureNew,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      prefixIcon: const Icon(Icons.lock_open),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureNew ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () =>
+                            setDialogState(() => obscureNew = !obscureNew),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmPwController,
+                    obscureText: obscureConfirm,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm New Password',
+                      prefixIcon: const Icon(Icons.lock_open),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureConfirm
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () => setDialogState(
+                          () => obscureConfirm = !obscureConfirm,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  final currentPw = currentPwController.text.trim();
+                  final newPw = newPwController.text.trim();
+                  final confirmPw = confirmPwController.text.trim();
+
+                  if (currentPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
+                    Helpers.showSnackbar(
+                      context,
+                      'Please fill in all fields',
+                      isError: true,
+                    );
+                    return;
+                  }
+                  if (newPw.length < 8) {
+                    Helpers.showSnackbar(
+                      context,
+                      'New password must be at least 8 characters',
+                      isError: true,
+                    );
+                    return;
+                  }
+                  if (newPw != confirmPw) {
+                    Helpers.showSnackbar(
+                      context,
+                      'Passwords do not match',
+                      isError: true,
+                    );
+                    return;
+                  }
+
+                  Navigator.pop(ctx);
+                  final authProvider = context.read<AuthProvider>();
+                  final success = await authProvider.changePassword(
+                    currentPassword: currentPw,
+                    newPassword: newPw,
+                    newPasswordConfirmation: confirmPw,
+                  );
+
+                  if (mounted) {
+                    Helpers.showSnackbar(
+                      context,
+                      success
+                          ? 'Password changed successfully'
+                          : authProvider.errorMessage ??
+                                'Failed to change password',
+                      isError: !success,
+                    );
+                  }
+                },
+                child: const Text('Change Password'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   void _showDebugInfo(BuildContext context) async {
     final user = context.read<AuthProvider>().user;
@@ -36,7 +269,7 @@ class AdminSettingsScreen extends StatelessWidget {
               _debugSection('Environment', {
                 'Build Mode': kReleaseMode ? 'Release' : 'Debug',
                 'Platform': kIsWeb ? 'Web' : 'Native',
-                'API Base URL': AppConstants.baseUrl,
+                'Storage': 'Local SQLite Database',
               }),
               const Divider(),
               _debugSection('Authentication', {
@@ -58,11 +291,7 @@ class AdminSettingsScreen extends StatelessWidget {
                 'Is Suspended': user?.isSuspended.toString() ?? 'N/A',
               }),
               const Divider(),
-              _debugSection('App', {
-                'Version': '1.0.0',
-                'Connection Timeout':
-                    '${AppConstants.connectionTimeout.inSeconds}s',
-              }),
+              _debugSection('App', {'Version': '1.0.0'}),
             ],
           ),
         ),
@@ -144,7 +373,9 @@ class AdminSettingsScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 32,
-                    backgroundColor: AppColors.primaryColor.withOpacity(0.1),
+                    backgroundColor: AppColors.primaryColor.withValues(
+                      alpha: 0.1,
+                    ),
                     child: Text(
                       user?.name.isNotEmpty == true
                           ? user!.name[0].toUpperCase()
@@ -179,7 +410,9 @@ class AdminSettingsScreen extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryColor.withOpacity(0.1),
+                            color: AppColors.primaryColor.withValues(
+                              alpha: 0.1,
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
@@ -210,8 +443,8 @@ class AdminSettingsScreen extends StatelessWidget {
           ),
           _SettingsTile(
             icon: Icons.storage,
-            title: 'API Server',
-            subtitle: AppConstants.baseUrl,
+            title: 'Data Storage',
+            subtitle: 'Local SQLite Database (Standalone)',
             onTap: () {},
           ),
 
@@ -236,6 +469,18 @@ class AdminSettingsScreen extends StatelessWidget {
 
           const SizedBox(height: 16),
           const _SectionHeader(title: 'Account'),
+          _SettingsTile(
+            icon: Icons.email,
+            title: 'Change Email',
+            subtitle: user?.email ?? 'Update admin email address',
+            onTap: () => _showChangeEmailDialog(),
+          ),
+          _SettingsTile(
+            icon: Icons.lock,
+            title: 'Change Password',
+            subtitle: 'Update admin password',
+            onTap: () => _showChangePasswordDialog(),
+          ),
           _SettingsTile(
             icon: Icons.logout,
             title: 'Logout',
@@ -334,7 +579,7 @@ class _SettingsTile extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: color, size: 20),

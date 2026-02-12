@@ -110,17 +110,14 @@ class CreditProvider with ChangeNotifier {
   void _startSessionTimer() {
     _stopSessionTimer();
 
-    _sessionTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (timer) async {
-        await fetchActiveSession();
+    _sessionTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
+      await fetchActiveSession();
 
-        // Stop timer if session is no longer active
-        if (!(_activeSession?.isActive ?? false)) {
-          _stopSessionTimer();
-        }
-      },
-    );
+      // Stop timer if session is no longer active
+      if (!(_activeSession?.isActive ?? false)) {
+        _stopSessionTimer();
+      }
+    });
   }
 
   /// Stop session monitoring timer
@@ -156,6 +153,38 @@ class CreditProvider with ChangeNotifier {
 
     if (total == 0) return 0.0;
     return 1.0 - (remaining / total);
+  }
+
+  /// Convert credits to a voucher
+  Future<Map<String, dynamic>?> convertCreditsToVoucher({
+    required int minutes,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await _apiService.convertCreditsToVoucher(
+        minutes: minutes,
+      );
+
+      // Refresh credits after conversion
+      await fetchCredits();
+
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _errorMessage = 'Failed to convert credits to voucher';
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
   }
 
   /// Clear error message

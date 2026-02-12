@@ -159,6 +159,30 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> deleteMachine(int machineId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _adminApiService.deleteMachine(machineId);
+      _machines.removeWhere((m) => m.id == machineId);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to delete machine';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> loadOfflineMachines() async {
     try {
       _offlineMachines = await _adminApiService.getOfflineMachines();
@@ -237,6 +261,21 @@ class AdminProvider with ChangeNotifier {
       return false;
     } catch (e) {
       _errorMessage = 'Failed to delete user';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> resetUserPassword(int userId) async {
+    try {
+      await _adminApiService.resetUserPassword(userId);
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to reset password';
       notifyListeners();
       return false;
     }
@@ -325,6 +364,47 @@ class AdminProvider with ChangeNotifier {
       _errorMessage = 'Failed to revoke voucher';
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Convert user credits to a WiFi voucher
+  Future<Voucher?> convertCreditsToVoucher({
+    required int userId,
+    required int minutes,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // 1. Deduct credits from user
+      await _adminApiService.adjustCredits(
+        userId,
+        -minutes,
+        'Converted $minutes credit minutes to WiFi voucher',
+      );
+
+      // 2. Generate voucher with those minutes
+      final voucher = await _adminApiService.generateVoucher(
+        minutes: minutes,
+        type: 'single_use',
+      );
+
+      _vouchers.insert(0, voucher);
+      await loadUsers();
+      _isLoading = false;
+      notifyListeners();
+      return voucher;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _errorMessage = 'Failed to convert credits to voucher';
+      _isLoading = false;
+      notifyListeners();
+      return null;
     }
   }
 

@@ -9,6 +9,9 @@ class AuthProvider with ChangeNotifier {
   final ApiService _apiService;
   final StorageService _storageService;
 
+  /// Expose API service for unauthenticated operations (e.g. forgot password)
+  ApiService get apiService => _apiService;
+
   User? _user;
   bool _isAuthenticated = false;
   bool _isLoading = false;
@@ -191,5 +194,71 @@ class AuthProvider with ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  /// Change user password
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        newPasswordConfirmation: newPasswordConfirmation,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to change password';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Update user profile (name, email, phone)
+  Future<bool> updateProfile({
+    String? name,
+    String? email,
+    String? phoneNumber,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.updateProfile(
+        name: name,
+        email: email,
+        phoneNumber: phoneNumber,
+      );
+      _user = response.data;
+      await _storageService.saveUser(_user!);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to update profile';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
 }

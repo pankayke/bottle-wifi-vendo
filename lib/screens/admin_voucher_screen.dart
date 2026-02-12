@@ -69,7 +69,9 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen>
                       onSelected: (selected) {
                         setDialogState(() => selectedMinutes = mins);
                       },
-                      selectedColor: AppColors.primaryColor.withOpacity(0.2),
+                      selectedColor: AppColors.primaryColor.withValues(
+                        alpha: 0.2,
+                      ),
                     );
                   }).toList(),
                 ),
@@ -77,7 +79,7 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryColor.withOpacity(0.05),
+                    color: AppColors.primaryColor.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -113,9 +115,10 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen>
                             minutes: selectedMinutes,
                           );
                           if (ctx.mounted) Navigator.pop(ctx);
-                          if (mounted && voucher != null) {
+                          if (!context.mounted) return;
+                          if (voucher != null) {
                             _showVoucherCreatedDialog(voucher);
-                          } else if (mounted) {
+                          } else {
                             Helpers.showSnackbar(
                               context,
                               admin.errorMessage ??
@@ -159,10 +162,10 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppColors.primaryColor.withOpacity(0.05),
+                color: AppColors.primaryColor.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.primaryColor.withOpacity(0.2),
+                  color: AppColors.primaryColor.withValues(alpha: 0.2),
                   style: BorderStyle.solid,
                 ),
               ),
@@ -349,6 +352,7 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen>
                 ),
               );
               if (confirmed == true) {
+                if (!context.mounted) return;
                 final reason = reasonController.text.trim();
                 if (reason.isEmpty) {
                   Helpers.showSnackbar(
@@ -362,13 +366,12 @@ class _AdminVoucherScreenState extends State<AdminVoucherScreen>
                   vouchers[index].id,
                   reason: reason,
                 );
-                if (mounted) {
-                  Helpers.showSnackbar(
-                    context,
-                    success ? 'Voucher revoked' : 'Failed to revoke',
-                    isError: !success,
-                  );
-                }
+                if (!context.mounted) return;
+                Helpers.showSnackbar(
+                  context,
+                  success ? 'Voucher revoked' : 'Failed to revoke',
+                  isError: !success,
+                );
               }
               reasonController.dispose();
             },
@@ -424,7 +427,7 @@ class _VoucherCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: _statusColor.withOpacity(0.1),
+                    color: _statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -463,7 +466,7 @@ class _VoucherCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: _statusColor.withOpacity(0.1),
+                    color: _statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Application-wide constants
@@ -6,50 +5,12 @@ class AppConstants {
   /// Private constructor to prevent instantiation
   AppConstants._();
 
-  /// Base URL for the Laravel API
-  /// Uses environment variable or defaults based on build mode
-  static String get baseUrl {
-    // Check for environment override first
-    const envUrl = String.fromEnvironment('API_BASE_URL');
-    if (envUrl.isNotEmpty) return envUrl;
-
-    // Default: localhost for debug (works for both web and Android emulator)
-    if (kReleaseMode) {
-      return 'https://your-production-server.com/api/v1'; // TODO: Update with actual production URL
-    }
-
-    // For web, use localhost directly; for Android emulator, use 10.0.2.2
-    return kIsWeb
-        ? 'http://localhost:8000/api/v1'
-        : 'http://10.0.2.2:8000/api/v1';
-  }
-
-  /// API Endpoints
-  static const String loginEndpoint = '/login';
-  static const String registerEndpoint = '/register';
-  static const String logoutEndpoint = '/logout';
-  static const String reportBottleEndpoint = '/bottles/report';
-  static const String bottleHistoryEndpoint = '/bottles/history';
-  static const String bottleStatisticsEndpoint = '/bottles/statistics';
-  static const String requestInternetEndpoint = '/credits/request-internet';
-  static const String viewCreditsEndpoint = '/credits';
-  static const String activeSessionEndpoint = '/credits/active-session';
-  static const String machineStatusEndpoint = '/machines/status';
-  static const String machineHeartbeatEndpoint = '/machines/heartbeat';
-  static const String userProfileEndpoint = '/profile';
+  // All data is stored locally on the device — no backend server needed.
 
   /// Storage Keys
   static const String tokenKey = 'auth_token';
   static const String tokenExpiryKey = 'token_expiry';
   static const String userKey = 'user_data';
-
-  /// Timeouts
-  static const Duration connectionTimeout = Duration(seconds: 30);
-  static const Duration receiveTimeout = Duration(seconds: 30);
-
-  /// Token Refresh
-  static const Duration tokenRefreshBuffer = Duration(minutes: 5);
-  static const String refreshTokenEndpoint = '/refresh-token';
 
   /// Validation
   static const int minPasswordLength = 8;
