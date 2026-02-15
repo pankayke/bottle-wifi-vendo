@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
-import '../utils/constants.dart';
-import '../utils/helpers.dart';
-import '../utils/validators.dart';
-import 'admin_shell_screen.dart';
-import 'dashboard_screen.dart';
-import 'register_screen.dart';
 
-/// Login screen
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+import '../../providers/auth_provider.dart';
+import '../../utils/constants.dart';
+import '../../utils/helpers.dart';
+import '../../utils/validators.dart';
+import 'admin_shell_screen.dart';
+
+/// Admin-only login screen for the kiosk app.
+/// Only admins can access this app — no registration or guest options.
+class AdminLoginScreen extends StatefulWidget {
+  const AdminLoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _AdminLoginScreenState extends State<AdminLoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -30,9 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     final authProvider = context.read<AuthProvider>();
 
@@ -44,27 +42,25 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
-      // Check if user is admin and redirect accordingly
       final user = authProvider.user;
       if (user != null && user.isAdmin) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const AdminShellScreen()),
+          MaterialPageRoute(builder: (_) => const AdminShellScreen()),
         );
       } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        // Non-admin attempted login — reject and logout
+        await authProvider.logout();
+        if (!mounted) return;
+        Helpers.showSnackbar(
+          context,
+          'Access denied. Admin accounts only.',
+          isError: true,
         );
       }
     } else {
       final errorMsg = authProvider.errorMessage ?? 'Login failed';
       Helpers.showSnackbar(context, errorMsg, isError: true);
     }
-  }
-
-  void _navigateToRegister() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const RegisterScreen()));
   }
 
   void _showForgotPasswordDialog() {
@@ -81,11 +77,11 @@ class _LoginScreenState extends State<LoginScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              title: Row(
-                children: const [
+              title: const Row(
+                children: [
                   Icon(Icons.lock_reset, color: AppColors.primaryColor),
                   SizedBox(width: 8),
-                  Text('Forgot Password'),
+                  Text('Reset Password'),
                 ],
               ),
               content: Column(
@@ -93,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Enter your email address to reset your password.',
+                    'Enter the admin email to reset the password.',
                     style: TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 16),
@@ -101,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: 'Email',
+                      labelText: 'Admin Email',
                       prefixIcon: const Icon(Icons.email_outlined),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(
@@ -178,8 +174,8 @@ class _LoginScreenState extends State<LoginScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: Row(
-            children: const [
+          title: const Row(
+            children: [
               Icon(Icons.check_circle, color: Colors.green, size: 28),
               SizedBox(width: 8),
               Text('Password Reset'),
@@ -201,8 +197,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.blue.shade200),
                 ),
-                child: Column(
-                  children: const [
+                child: const Column(
+                  children: [
                     Text(
                       'Your new password is:',
                       style: TextStyle(fontSize: 13, color: Colors.black54),
@@ -256,25 +252,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Back Button
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios_new),
-                      color: AppColors.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Campus Logo
+                  // Admin icon
                   Center(
                     child: Container(
-                      width: 150,
-                      height: 150,
+                      width: 120,
+                      height: 120,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white,
+                        color: AppColors.primaryColor.withValues(alpha: 0.1),
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.primaryColor.withValues(
@@ -285,26 +270,18 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                       ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/school_logo.jpg',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.school,
-                              size: 80,
-                              color: AppColors.primaryColor,
-                            );
-                          },
-                        ),
+                      child: const Icon(
+                        Icons.admin_panel_settings,
+                        size: 64,
+                        color: AppColors.primaryColor,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
 
                   // Title
                   Text(
-                    'Bottle-Wifi',
+                    'Bottle WiFi Vendo',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
@@ -315,7 +292,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Subtitle
                   Text(
-                    'Sign in to continue',
+                    'Admin Login',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppColors.textSecondary,
@@ -323,14 +300,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 48),
 
-                  // Email Field
+                  // Email field
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     validator: Validators.validateEmail,
                     decoration: InputDecoration(
-                      labelText: 'Email',
+                      labelText: 'Admin Email',
                       prefixIcon: const Icon(Icons.email_outlined),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(
@@ -341,7 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Password Field
+                  // Password field
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
@@ -358,9 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               : Icons.visibility_off_outlined,
                         ),
                         onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
+                          setState(() => _obscurePassword = !_obscurePassword);
                         },
                       ),
                       border: OutlineInputBorder(
@@ -372,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Forgot Password
+                  // Forgot password
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -385,7 +360,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Login Button
+                  // Login button
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, child) {
                       return ElevatedButton(
@@ -412,7 +387,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               )
                             : const Text(
-                                'Login',
+                                'Sign In',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -421,24 +396,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       );
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 32),
 
-                  // Register Link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Don\'t have an account? ',
-                        style: TextStyle(color: AppColors.textSecondary),
+                  // Footer
+                  Center(
+                    child: Text(
+                      'Admin access only',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade400,
                       ),
-                      TextButton(
-                        onPressed: _navigateToRegister,
-                        child: const Text(
-                          'Register',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),

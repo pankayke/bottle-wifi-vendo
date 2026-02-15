@@ -1,6 +1,7 @@
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+
 import 'database_helper.dart';
 import 'device_fingerprint_service.dart';
 
@@ -15,7 +16,7 @@ class GuestService {
   /// Creates a voucher for each bottle scanned.
   Future<Map<String, dynamic>> scanBottle({
     required String machineIdentifier,
-    int minutesPerBottle = 30,
+    int minutesPerBottle = 20,
   }) async {
     try {
       final deviceFingerprint = await _fingerprintService.generateFingerprint();

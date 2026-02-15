@@ -72,4 +72,18 @@ class Validators {
 
     return null;
   }
+
+  /// Voucher code validation
+  static String? validateVoucherCode(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Voucher code is required';
+    }
+
+    final cleaned = value.replaceAll(' ', '');
+    if (cleaned.length < 4) {
+      return 'Voucher code is too short';
+    }
+
+    return null;
+  }
 }

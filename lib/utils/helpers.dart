@@ -35,17 +35,22 @@ class Helpers {
     }
   }
 
-  /// Format credits/minutes
-  static String formatCredits(int minutes) {
-    if (minutes >= 60) {
-      final hours = minutes ~/ 60;
-      final remainingMinutes = minutes % 60;
+  /// Format credits as a plain count (1 credit = 1 minute).
+  static String formatCredits(int credits) {
+    return '$credits credits';
+  }
+
+  /// Format credits as equivalent WiFi time.
+  static String formatCreditsAsTime(int credits) {
+    if (credits >= 60) {
+      final hours = credits ~/ 60;
+      final remainingMinutes = credits % 60;
       if (remainingMinutes > 0) {
         return '$hours hr $remainingMinutes min';
       }
       return '$hours hr';
     }
-    return '$minutes min';
+    return '$credits min';
   }
 
   /// Show snackbar message

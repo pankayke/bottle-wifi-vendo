@@ -1,35 +1,47 @@
 import 'package:flutter/foundation.dart';
+
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/guest_service.dart';
 import '../services/storage_service.dart';
 import '../utils/api_exception.dart';
 
-/// Authentication state provider
+/// Unified authentication state provider.
+/// Supports admin login, user login, user registration, and guest conversion.
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService;
   final StorageService _storageService;
+  final GuestService _guestService;
 
-  /// Expose API service for unauthenticated operations (e.g. forgot password)
+  /// Expose API service for unauthenticated operations (e.g. forgot password).
   ApiService get apiService => _apiService;
 
   User? _user;
   bool _isAuthenticated = false;
+  bool _isGuest = true;
   bool _isLoading = false;
   String? _errorMessage;
 
   AuthProvider({
     required ApiService apiService,
     required StorageService storageService,
+    required GuestService guestService,
   }) : _apiService = apiService,
-       _storageService = storageService;
+       _storageService = storageService,
+       _guestService = guestService;
 
-  // Getters
+  // ==================== Getters ====================
+
   User? get user => _user;
   bool get isAuthenticated => _isAuthenticated;
+  bool get isGuest => _isGuest;
+  bool get isAdmin => _user?.isAdmin ?? false;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  /// Initialize authentication state
+  // ==================== Initialisation ====================
+
+  /// Restore auth state from persisted storage.
   Future<void> initialize() async {
     _isLoading = true;
     notifyListeners();
@@ -39,8 +51,8 @@ class AuthProvider with ChangeNotifier {
       if (isAuth) {
         _user = await _storageService.getUser();
         _isAuthenticated = _user != null;
+        _isGuest = _user == null;
 
-        // Refresh user profile
         if (_isAuthenticated) {
           await refreshUserProfile();
         }
@@ -48,13 +60,92 @@ class AuthProvider with ChangeNotifier {
     } catch (e) {
       _errorMessage = e.toString();
       _isAuthenticated = false;
+      _isGuest = true;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Register a new user
+  // ==================== Admin Login ====================
+
+  /// Login as admin — no role restriction on the API call itself,
+  /// but the caller (admin login screen) checks `user.isAdmin`.
+  Future<bool> login({required String email, required String password}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.login(
+        email: email,
+        password: password,
+      );
+
+      _user = response.data;
+      _isAuthenticated = true;
+      _isGuest = false;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ==================== User Login ====================
+
+  /// Login as a regular user — blocks admin accounts.
+  Future<bool> loginUser({
+    required String email,
+    required String password,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.loginUser(
+        email: email,
+        password: password,
+      );
+
+      if (response.success && response.data != null) {
+        _user = response.data;
+        _isAuthenticated = true;
+        _isGuest = false;
+        notifyListeners();
+        return true;
+      }
+
+      _errorMessage = response.message ?? 'Login failed';
+      notifyListeners();
+      return false;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'An unexpected error occurred';
+      notifyListeners();
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ==================== Registration ====================
+
+  /// Register a new user account.
   Future<bool> register({
     required String name,
     required String email,
@@ -73,78 +164,81 @@ class AuthProvider with ChangeNotifier {
         passwordConfirmation: passwordConfirmation,
       );
 
-      _user = response.data;
-      _isAuthenticated = true;
-      _isLoading = false;
+      if (response.success && response.data != null) {
+        _user = response.data;
+        _isAuthenticated = true;
+        _isGuest = false;
+        notifyListeners();
+        return true;
+      }
+
+      _errorMessage = response.message ?? 'Registration failed';
       notifyListeners();
-      return true;
+      return false;
     } on ApiException catch (e) {
       _errorMessage = e.message;
-      _isLoading = false;
       notifyListeners();
       return false;
     } catch (e) {
       _errorMessage = 'An unexpected error occurred';
-      _isLoading = false;
       notifyListeners();
       return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  /// Login user
-  Future<bool> login({required String email, required String password}) async {
+  // ==================== Guest Conversion ====================
+
+  /// Convert guest to registered user, transferring accumulated credits.
+  Future<bool> convertGuestToUser({
+    required String deviceFingerprint,
+    required String name,
+    required String email,
+    required String password,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final response = await _apiService.login(
+      final result = await _guestService.convertToRegisteredUser(
+        deviceFingerprint: deviceFingerprint,
+        name: name,
         email: email,
         password: password,
       );
 
-      _user = response.data;
-      _isAuthenticated = true;
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } on ApiException catch (e) {
-      _errorMessage = e.message;
-      _isLoading = false;
+      if (result['success'] == true) {
+        final data = result['data'] as Map<String, dynamic>;
+        final token = data['token'] as String;
+        final userMap = data['user'] as Map<String, dynamic>;
+
+        await _storageService.saveToken(token);
+        _user = User.fromJson(userMap);
+        await _storageService.saveUser(_user!);
+        _isAuthenticated = true;
+        _isGuest = false;
+        notifyListeners();
+        return true;
+      }
+
+      _errorMessage = result['error'] as String? ?? 'Conversion failed';
       notifyListeners();
       return false;
     } catch (e) {
       _errorMessage = 'An unexpected error occurred';
-      _isLoading = false;
       notifyListeners();
       return false;
-    }
-  }
-
-  /// Login with token (used after guest registration)
-  Future<void> loginWithToken(
-    String token,
-    Map<String, dynamic> userData,
-  ) async {
-    try {
-      // Save token to storage
-      await _storageService.saveToken(token);
-
-      // Create user object from data
-      _user = User.fromJson(userData);
-      await _storageService.saveUser(_user!);
-
-      _isAuthenticated = true;
-      _errorMessage = null;
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Failed to save authentication data';
-      debugPrint('Login with token error: $e');
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Logout user
+  // ==================== Logout ====================
+
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
@@ -152,13 +246,12 @@ class AuthProvider with ChangeNotifier {
     try {
       await _apiService.logout();
     } catch (e) {
-      // Continue with logout even if API call fails
       debugPrint('Logout API error: $e');
     } finally {
-      // Always clear local storage to prevent stale auth state
       await _storageService.clearAll();
       _user = null;
       _isAuthenticated = false;
+      _isGuest = true;
       _errorMessage = null;
       _isLoading = false;
       notifyListeners();

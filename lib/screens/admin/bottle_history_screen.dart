@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bottle_provider.dart';
-import '../utils/constants.dart';
-import '../widgets/bottle_log_card.dart';
+import '../../providers/bottle_provider.dart';
+import '../../utils/constants.dart';
+import '../../widgets/bottle_log_card.dart';
 
 /// Bottle history screen showing all bottle logs
 class BottleHistoryScreen extends StatefulWidget {

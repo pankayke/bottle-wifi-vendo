@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../providers/admin_provider.dart';
-import '../models/voucher.dart';
-import '../utils/constants.dart';
-import '../utils/helpers.dart';
+import '../../providers/admin_provider.dart';
+import '../../models/voucher.dart';
+import '../../utils/constants.dart';
+import '../../utils/helpers.dart';
 
 /// Voucher management screen for admin
 class AdminVoucherScreen extends StatefulWidget {

@@ -1,28 +1,44 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../models/internet_credit.dart';
+import '../models/voucher.dart';
 import '../models/wifi_session.dart';
 import '../services/api_service.dart';
 import '../utils/api_exception.dart';
 
-/// Internet credit and session state provider
+/// Unified internet credit and session state provider.
+/// Supports admin session management, user credit balance, and voucher redemption.
 class CreditProvider with ChangeNotifier {
   final ApiService _apiService;
 
+  // Admin fields
   InternetCredit? _credits;
   WifiSession? _activeSession;
   bool _isLoading = false;
   String? _errorMessage;
   Timer? _sessionTimer;
 
+  // User fields
+  int _creditBalance = 0;
+  String? _successMessage;
+  Voucher? _lastRedeemedVoucher;
+
   CreditProvider({required ApiService apiService}) : _apiService = apiService;
 
-  // Getters
+  // ==================== Getters ====================
+
   InternetCredit? get credits => _credits;
   WifiSession? get activeSession => _activeSession;
   bool get isLoading => _isLoading;
   bool get hasActiveSession => _activeSession?.isActive ?? false;
   String? get errorMessage => _errorMessage;
+
+  // User getters
+  int get creditBalance => _creditBalance;
+  String? get successMessage => _successMessage;
+  Voucher? get lastRedeemedVoucher => _lastRedeemedVoucher;
 
   /// Fetch user credits
   Future<void> fetchCredits() async {
@@ -199,7 +215,77 @@ class CreditProvider with ChangeNotifier {
     _activeSession = null;
     _isLoading = false;
     _errorMessage = null;
+    _successMessage = null;
+    _creditBalance = 0;
+    _lastRedeemedVoucher = null;
     _stopSessionTimer();
+    notifyListeners();
+  }
+
+  // ==================== User Methods ====================
+
+  /// Fetch simple credit balance for user screens.
+  Future<void> fetchBalance() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _creditBalance = await _apiService.getCreditBalance();
+      notifyListeners();
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to fetch balance';
+      notifyListeners();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Redeem a voucher code.
+  Future<bool> redeemVoucher({required String code}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    _lastRedeemedVoucher = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.redeemVoucher(code: code);
+
+      if (response.success && response.data != null) {
+        _lastRedeemedVoucher = response.data;
+        _successMessage = response.message ?? 'Voucher redeemed successfully!';
+        // Refresh balance after redemption
+        await fetchBalance();
+        notifyListeners();
+        return true;
+      }
+
+      _errorMessage = response.message ?? 'Redemption failed';
+      notifyListeners();
+      return false;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to redeem voucher';
+      notifyListeners();
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Clear success/error messages.
+  void clearMessages() {
+    _errorMessage = null;
+    _successMessage = null;
     notifyListeners();
   }
 

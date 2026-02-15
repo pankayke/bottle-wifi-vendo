@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/machine.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
@@ -7,10 +8,7 @@ import '../utils/helpers.dart';
 class MachineCard extends StatelessWidget {
   final Machine machine;
 
-  const MachineCard({
-    super.key,
-    required this.machine,
-  });
+  const MachineCard({super.key, required this.machine});
 
   Color _getStatusColor() {
     if (machine.isOnline) return AppColors.successColor;
@@ -55,11 +53,7 @@ class MachineCard extends StatelessWidget {
                       color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(24),
                     ),
-                    child: Icon(
-                      Icons.router,
-                      color: statusColor,
-                      size: 28,
-                    ),
+                    child: Icon(Icons.router, color: statusColor, size: 28),
                   ),
                   const SizedBox(width: 16),
 
@@ -79,7 +73,7 @@ class MachineCard extends StatelessWidget {
                         if (machine.location != null)
                           Text(
                             machine.location!,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 14,
                               color: AppColors.textSecondary,
                             ),
@@ -92,11 +86,7 @@ class MachineCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Icon(
-                        statusIcon,
-                        color: statusColor,
-                        size: 24,
-                      ),
+                      Icon(statusIcon, color: statusColor, size: 24),
                       const SizedBox(height: 4),
                       Text(
                         machine.status.toUpperCase(),
@@ -172,26 +162,16 @@ class _DetailRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: AppColors.textSecondary,
-        ),
+        Icon(icon, size: 16, color: AppColors.textSecondary),
         const SizedBox(width: 8),
         Text(
           '$label: ',
-          style: TextStyle(
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             textAlign: TextAlign.right,
           ),
         ),

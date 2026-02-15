@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
-import '../services/storage_service.dart';
-import '../utils/constants.dart';
-import '../utils/helpers.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/storage_service.dart';
+import '../../utils/constants.dart';
+import '../../utils/helpers.dart';
 
 /// Admin settings screen
 class AdminSettingsScreen extends StatefulWidget {

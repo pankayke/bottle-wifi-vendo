@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
-import '../providers/admin_provider.dart';
-import '../services/admin_api_service.dart';
-import '../utils/constants.dart';
+import '../../providers/admin_provider.dart';
+import '../../services/admin_api_service.dart';
+import '../../utils/constants.dart';
 
 /// Admin dashboard with stats cards and bottle chart
 class AdminDashboardScreen extends StatefulWidget {

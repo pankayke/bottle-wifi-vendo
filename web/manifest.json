@@ -1,11 +1,11 @@
 {
-    "name": "Bottle WiFi Vendo",
-    "short_name": "Bottle WiFi",
+    "name": "BottleWiFi — Recycle & Earn Free WiFi",
+    "short_name": "BottleWiFi",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#1976D2",
-    "theme_color": "#1976D2",
-    "description": "Recycle bottles and earn free WiFi credits.",
+    "background_color": "#10B981",
+    "theme_color": "#10B981",
+    "description": "Recycle plastic bottles and earn free WiFi credits. Scan, get a voucher, and connect instantly.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

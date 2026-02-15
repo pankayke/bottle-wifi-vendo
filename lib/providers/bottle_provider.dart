@@ -1,12 +1,18 @@
 import 'package:flutter/foundation.dart';
+
 import '../models/api_response.dart';
 import '../models/bottle_log.dart';
 import '../services/api_service.dart';
+import '../services/guest_service.dart';
+import '../services/point_timer_service.dart';
 import '../utils/api_exception.dart';
 
-/// Bottle management state provider
+/// Unified bottle management state provider.
+/// Supports admin bottle reporting, user bottle history, and guest scanning.
 class BottleProvider with ChangeNotifier {
   final ApiService _apiService;
+  final GuestService _guestService;
+  final PointTimerService _pointTimerService = PointTimerService();
 
   List<BottleLog> _bottleLogs = [];
   BottleStatistics? _statistics;
@@ -15,14 +21,27 @@ class BottleProvider with ChangeNotifier {
   int _currentPage = 1;
   String? _errorMessage;
 
-  BottleProvider({required ApiService apiService}) : _apiService = apiService;
+  // User / Guest extra fields
+  String? _successMessage;
+  Map<String, dynamic>? _lastScanResult;
+  Map<String, dynamic>? _guestStats;
 
-  // Getters
+  BottleProvider({
+    required ApiService apiService,
+    required GuestService guestService,
+  }) : _apiService = apiService,
+       _guestService = guestService;
+
+  // ==================== Getters ====================
+
   List<BottleLog> get bottleLogs => _bottleLogs;
   BottleStatistics? get statistics => _statistics;
   bool get isLoading => _isLoading;
   bool get hasMorePages => _hasMorePages;
   String? get errorMessage => _errorMessage;
+  String? get successMessage => _successMessage;
+  Map<String, dynamic>? get lastScanResult => _lastScanResult;
+  Map<String, dynamic>? get guestStats => _guestStats;
 
   /// Report a bottle
   Future<bool> reportBottle({
@@ -161,6 +180,110 @@ class BottleProvider with ChangeNotifier {
     _hasMorePages = true;
     _currentPage = 1;
     _errorMessage = null;
+    _successMessage = null;
+    _lastScanResult = null;
+    _guestStats = null;
+    notifyListeners();
+  }
+
+  // ==================== Guest / User Methods ====================
+
+  /// Scan a bottle as guest (unauthenticated).
+  Future<bool> guestScanBottle({required String machineIdentifier}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    _lastScanResult = null;
+    notifyListeners();
+
+    try {
+      final result = await _guestService.scanBottle(
+        machineIdentifier: machineIdentifier,
+      );
+
+      if (result['success'] == true) {
+        _lastScanResult = result;
+        final session = result['session'] as Map<String, dynamic>?;
+        final code = session?['voucher_code'] as String? ?? '';
+        _successMessage = 'Bottle scanned! Voucher: $code';
+        notifyListeners();
+        return true;
+      }
+
+      _errorMessage = result['error'] as String? ?? 'Scan failed';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'An unexpected error occurred';
+      notifyListeners();
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Scan a bottle as authenticated user — earns credits directly.
+  Future<bool> userScanBottle({
+    required int userId,
+    String machineIdentifier = 'default_machine',
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    _lastScanResult = null;
+    notifyListeners();
+
+    try {
+      final result = await _pointTimerService.scanBottleForUser(
+        userId: userId,
+        machineIdentifier: machineIdentifier,
+      );
+
+      if (result['success'] == true) {
+        _lastScanResult = result;
+        final session = result['session'] as Map<String, dynamic>?;
+        final credits = session?['credits_earned'] as int? ?? 0;
+        _successMessage = 'Bottle scanned! +$credits credits earned.';
+        notifyListeners();
+        return true;
+      }
+
+      _errorMessage = result['error'] as String? ?? 'Scan failed';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'An unexpected error occurred';
+      notifyListeners();
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Load guest stats for this device.
+  Future<void> loadGuestStats() async {
+    try {
+      final stats = await _guestService.getStats();
+      if (stats['success'] == true) {
+        _guestStats = stats;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading guest stats: $e');
+    }
+  }
+
+  /// Alias for fetchBottleHistory — used by user screens.
+  Future<void> loadBottleHistory({bool refresh = false}) async {
+    await fetchBottleHistory(refresh: refresh);
+  }
+
+  /// Clear success/error messages.
+  void clearMessages() {
+    _errorMessage = null;
+    _successMessage = null;
     notifyListeners();
   }
 }

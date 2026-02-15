@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/machine.dart';
-import '../providers/admin_provider.dart';
-import '../utils/constants.dart';
-import '../utils/helpers.dart';
+import '../../models/machine.dart';
+import '../../providers/admin_provider.dart';
+import '../../utils/constants.dart';
+import '../../utils/helpers.dart';
 
 /// Machine detail screen showing stats and info
 class AdminMachineDetailScreen extends StatefulWidget {

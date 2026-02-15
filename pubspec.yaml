@@ -52,6 +52,9 @@ dependencies:
   # Device Fingerprinting & Security
   device_info_plus: ^10.1.2
   crypto: ^3.0.5
+  sqflite_common_ffi_web: ^1.1.1
+  google_fonts: ^8.0.1
+  flutter_animate: ^4.5.2
 
 dev_dependencies:
   flutter_test:

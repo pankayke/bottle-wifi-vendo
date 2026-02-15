@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/admin_provider.dart';
-import '../models/user.dart';
-import '../utils/constants.dart';
-import '../utils/helpers.dart';
+import '../../providers/admin_provider.dart';
+import '../../models/user.dart';
+import '../../utils/constants.dart';
+import '../../utils/helpers.dart';
 
 /// Format minutes into a readable WiFi time string
 String _formatWifiTime(int minutes) {

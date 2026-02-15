@@ -1,9 +1,11 @@
 import 'package:sqflite/sqflite.dart';
+
 import '../models/api_response.dart';
 import '../models/bottle_log.dart';
 import '../models/internet_credit.dart';
 import '../models/machine.dart';
 import '../models/user.dart';
+import '../models/voucher.dart';
 import '../models/wifi_session.dart';
 import '../utils/api_exception.dart';
 import '../utils/constants.dart';
@@ -144,6 +146,70 @@ class ApiService {
       rethrow;
     } catch (e) {
       throw ApiException(message: 'Login failed: $e', statusCode: null);
+    }
+  }
+
+  /// Login as a regular user — blocks admin accounts.
+  Future<ApiResponse<User>> loginUser({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final db = await _db.database;
+      final rows = await db.query(
+        'users',
+        where: 'email = ? AND password_hash = ?',
+        whereArgs: [email.toLowerCase(), DatabaseHelper.hashPassword(password)],
+      );
+
+      if (rows.isEmpty) {
+        throw ApiException.validationError('Invalid email or password');
+      }
+
+      final userRow = rows.first;
+
+      // Block admin accounts from user login
+      if (userRow['role'] == 'admin') {
+        throw ApiException.validationError(
+          'Admin accounts must use the kiosk app',
+        );
+      }
+
+      if (userRow['suspended_at'] != null) {
+        final reason = userRow['suspension_reason'] as String? ?? 'No reason';
+        throw ApiException(
+          message: 'Account suspended: $reason',
+          statusCode: 403,
+        );
+      }
+
+      final now = DateTime.now().toIso8601String();
+      await db.update(
+        'users',
+        {'last_login_at': now, 'updated_at': now},
+        where: 'id = ?',
+        whereArgs: [userRow['id']],
+      );
+
+      final updatedRow = (await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [userRow['id']],
+      )).first;
+
+      final user = User.fromJson(updatedRow);
+      await _storageService.saveToken('local_auth_${user.id}');
+      await _storageService.saveUser(user);
+
+      return ApiResponse<User>(
+        success: true,
+        message: 'Login successful',
+        data: user,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(message: 'User login failed: $e', statusCode: null);
     }
   }
 
@@ -553,6 +619,114 @@ class ApiService {
   /// Get active session — standalone mode has no persistent sessions.
   Future<ApiResponse<WifiSession?>> getActiveSession() async {
     return ApiResponse<WifiSession?>(success: true, data: null);
+  }
+
+  // ==================== Voucher Redemption ====================
+
+  /// Redeem a voucher code and award credits to the current user.
+  Future<ApiResponse<Voucher>> redeemVoucher({required String code}) async {
+    try {
+      final db = await _db.database;
+      final currentUser = await _storageService.getUser();
+      if (currentUser == null) throw ApiException.unauthorized();
+
+      final clean = code.replaceAll(' ', '').toUpperCase();
+
+      final rows = await db.query(
+        'vouchers',
+        where: 'code = ?',
+        whereArgs: [clean],
+      );
+
+      if (rows.isEmpty) {
+        throw ApiException.validationError('Voucher code not found');
+      }
+
+      final voucherRow = rows.first;
+      final status = voucherRow['status'] as String?;
+
+      if (status != 'active') {
+        throw ApiException.validationError(
+          'This voucher has already been redeemed or is no longer valid',
+        );
+      }
+
+      // Check expiry
+      final expiresAtStr = voucherRow['expires_at'] as String?;
+      if (expiresAtStr != null) {
+        final expiresAt = DateTime.tryParse(expiresAtStr);
+        if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
+          throw ApiException.validationError('This voucher has expired');
+        }
+      }
+
+      final minutes = voucherRow['minutes'] as int;
+      final now = DateTime.now().toIso8601String();
+
+      // Mark voucher as redeemed
+      await db.update(
+        'vouchers',
+        {
+          'status': 'redeemed',
+          'user_id': currentUser.id,
+          'user_name': currentUser.name,
+          'redeemed_at': now,
+        },
+        where: 'id = ?',
+        whereArgs: [voucherRow['id']],
+      );
+
+      // Award credits to user
+      await db.rawUpdate(
+        'UPDATE users SET credits = credits + ?, updated_at = ? WHERE id = ?',
+        [minutes, now, currentUser.id],
+      );
+
+      // Refresh user in storage
+      final refreshedUser = (await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [currentUser.id],
+      )).first;
+      await _storageService.saveUser(User.fromJson(refreshedUser));
+
+      final updatedVoucher = (await db.query(
+        'vouchers',
+        where: 'id = ?',
+        whereArgs: [voucherRow['id']],
+      )).first;
+
+      return ApiResponse<Voucher>(
+        success: true,
+        message: 'Voucher redeemed! $minutes minutes added to your account.',
+        data: Voucher.fromJson(updatedVoucher),
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to redeem voucher: $e',
+        statusCode: null,
+      );
+    }
+  }
+
+  // ==================== Credit Balance ====================
+
+  /// Get current user's credit balance (simple int).
+  Future<int> getCreditBalance() async {
+    final db = await _db.database;
+    final currentUser = await _storageService.getUser();
+    if (currentUser == null) throw ApiException.unauthorized();
+
+    final row = (await db.query(
+      'users',
+      columns: ['credits'],
+      where: 'id = ?',
+      whereArgs: [currentUser.id],
+    )).first;
+
+    return row['credits'] as int? ?? 0;
   }
 
   // ==================== Machines ====================

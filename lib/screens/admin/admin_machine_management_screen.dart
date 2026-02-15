@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/admin_provider.dart';
-import '../models/machine.dart';
-import '../utils/constants.dart';
-import '../utils/helpers.dart';
+import '../../providers/admin_provider.dart';
+import '../../models/machine.dart';
+import '../../utils/constants.dart';
+import '../../utils/helpers.dart';
 import 'admin_machine_detail_screen.dart';
 
 /// Machine management screen for admin

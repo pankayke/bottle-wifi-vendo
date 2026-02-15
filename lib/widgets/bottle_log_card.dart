@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/bottle_log.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
@@ -94,7 +95,7 @@ class BottleLogCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       Helpers.formatDateTime(bottleLog.timestamp),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,
                       ),
@@ -115,7 +116,7 @@ class BottleLogCard extends StatelessWidget {
                       color: statusColor,
                     ),
                   ),
-                  Text(
+                  const Text(
                     'credits',
                     style: TextStyle(
                       fontSize: 12,

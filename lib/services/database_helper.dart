@@ -6,6 +6,10 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+// Conditional import: web uses IndexedDB factory, native is a no-op.
+import 'database_factory_stub.dart'
+    if (dart.library.js_interop) 'database_factory_web.dart';
+
 /// Singleton database helper for local SQLite storage.
 /// Replaces the Laravel backend — all data lives on the device.
 class DatabaseHelper {
@@ -14,7 +18,7 @@ class DatabaseHelper {
   DatabaseHelper._internal();
 
   static Database? _database;
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
   static const String _dbName = 'bottle_wifi.db';
 
   Future<Database> get database async {
@@ -23,15 +27,19 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDatabase() async {
-    String path;
+    // On web, sqflite needs an explicit factory backed by IndexedDB.
     if (kIsWeb) {
-      // Web uses IndexedDB via sqflite_common_ffi_web; no filesystem path.
-      path = _dbName;
-    } else {
-      final dbPath = await getDatabasesPath();
-      path = join(dbPath, _dbName);
+      initWebDatabaseFactory();
+      return openDatabase(
+        _dbName,
+        version: _dbVersion,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      );
     }
 
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, _dbName);
     return openDatabase(
       path,
       version: _dbVersion,
@@ -116,12 +124,36 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE bottle_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        machine_id INTEGER,
+        credits_earned INTEGER DEFAULT 0,
+        session_type TEXT DEFAULT 'scan',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    ''');
+
     // Seed default admin account
     await _seedDefaultAdmin(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Handle future schema migrations here.
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS bottle_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          machine_id INTEGER,
+          credits_earned INTEGER DEFAULT 0,
+          session_type TEXT DEFAULT 'scan',
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+      ''');
+    }
   }
 
   /// Seed the default admin account on first launch.

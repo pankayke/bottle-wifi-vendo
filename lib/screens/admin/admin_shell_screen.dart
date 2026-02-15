@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/admin_provider.dart';
-import '../utils/constants.dart';
+import '../../providers/admin_provider.dart';
+import '../../utils/constants.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_machine_management_screen.dart';
 import 'admin_user_management_screen.dart';
